@@ -12,7 +12,6 @@ This project uses **uv** to manage the Python virtual environment and dependenci
 irm https://astral.sh/uv/install.ps1 | iex
 ```
 
-
 ### 2. Create & sync the virtual environment
 
 ```powershell
@@ -141,4 +140,8 @@ docker run -it --rm p2pfl bash
 
 ## Create testing scenario
 
-You can check how to create a scenario via p2pfl documentation or check mnist_random10.py at root
+You can check how to create a scenario via p2pfl documentation or check mnist_dsgd_random10.py at root
+
+```bash
+python .\mnist_dsgd_random10.py --n 10 --topology random_3 --rounds 1 --epochs 1
+```
