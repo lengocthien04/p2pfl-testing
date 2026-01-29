@@ -50,6 +50,7 @@ from p2pfl.management.logger import logger
 from p2pfl.node_state import NodeState
 from p2pfl.settings import Settings
 from p2pfl.stages.workflows import LearningWorkflow
+from p2pfl.management.comm_logger import CommLogger
 
 # Disbalbe grpc log (pytorch causes warnings)
 if logger.get_level_name(logger.get_level()) != "DEBUG":
@@ -102,6 +103,12 @@ class Node:
         # Communication protol (and get addr)
         self._communication_protocol = GrpcCommunicationProtocol() if protocol is None else protocol
         self.addr = self._communication_protocol.set_addr(addr)
+        
+        self.comm_logger = CommLogger(self.addr)
+
+        if hasattr(self._communication_protocol, "set_comm_logger"):
+            self._communication_protocol.set_comm_logger(self.comm_logger)
+
 
         # Aggregator
         self.aggregator = FedAvg() if aggregator is None else aggregator

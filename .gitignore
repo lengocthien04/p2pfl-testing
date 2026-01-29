@@ -168,3 +168,6 @@ wandb/
 .uv/
 uv.lock.tmp*
 .uv-cache/
+
+#conm csv
+*.csv
