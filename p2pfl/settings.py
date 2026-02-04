@@ -60,13 +60,13 @@ class General:
 class Heartbeat:
     """Heartbeat settings."""
 
-    PERIOD: float = 3.0
+    PERIOD: float = 30.0
     """Period (seconds) to send heartbeats."""
 
-    TIMEOUT: float = 15.0
+    TIMEOUT: float = 150.0
     """Timeout (seconds) for a node to be considered dead."""
 
-    WAIT_CONVERGENCE: float = 3.0
+    WAIT_CONVERGENCE: float = 30.0
     """Time (seconds) to wait for the heartbeats to converge before a learning round starts."""
 
     EXCLUDE_BEAT_LOGS: bool = True
@@ -77,7 +77,7 @@ class Heartbeat:
 class Gossip:
     """Gossip protocol settings."""
 
-    PERIOD: float = 0.5
+    PERIOD: float = 5.0
     """Period (seconds) for the gossip protocol."""
 
     TTL: int = 10
