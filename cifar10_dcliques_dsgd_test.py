@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from p2pfl.learning.dataset.p2pfl_dataset import P2PFLDataset
 from p2pfl.learning.frameworks.pytorch.lightning_model import LightningModel
-from p2pfl.examples.mnist.model.mlp_pytorch import MLP
+from p2pfl.examples.cifar10.model.resnet_pytorch import ResNetCIFAR10
 from p2pfl.learning.dataset.partition_strategies import DirichletPartitionStrategy
 from p2pfl.node import Node
 
@@ -98,7 +98,7 @@ def main():
     args = ap.parse_args()
 
     # 1) Load dataset + partition
-    dataset = P2PFLDataset.from_huggingface("p2pfl/MNIST")
+    dataset = P2PFLDataset.from_huggingface("p2pfl/CIFAR10")
     strategy = DirichletPartitionStrategy()
 
     datashards = dataset.generate_partitions(
@@ -140,7 +140,7 @@ def main():
     nodes: list[Node] = []
     for i in range(args.n):
         node = Node(
-            model=LightningModel(MLP()),
+            model=LightningModel(ResNetCIFAR10()),
             data=datashards[i],
             addr=f"127.0.0.1:{args.base_port + i}",
             aggregator=DSGD(),   # <-- key change vs FedAvg
