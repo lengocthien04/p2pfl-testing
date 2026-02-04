@@ -1,7 +1,8 @@
 # cifar10_resnet_full.py
 import time
 import argparse
-
+import os
+from datetime import datetime
 from p2pfl.learning.dataset.p2pfl_dataset import P2PFLDataset
 from p2pfl.learning.dataset.partition_strategies import DirichletPartitionStrategy
 from p2pfl.node import Node
@@ -68,6 +69,16 @@ def main():
         time.sleep(1)
         if nodes[0].state.round is None:
             break
+    run_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    base_dir = os.path.join("logs", "comm", f"run_{run_id}")
+    os.makedirs(base_dir, exist_ok=True)
+
+    for node in nodes:
+        proto = getattr(node, "protocol", None)
+        comm_logger = getattr(proto, "comm_logger", None) if proto else None
+        if comm_logger is not None:
+            fname = f"cifar10_fully_node_{node.addr.replace(':','_')}.csv"
+            comm_logger.save_csv(os.path.join(base_dir, fname))
 
     # ---- stop nodes ----
     for node in nodes:
