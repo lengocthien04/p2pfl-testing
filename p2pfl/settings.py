@@ -49,7 +49,7 @@ class General:
     MAX_LOG_RUNS: int = 10
     """Maximum number of run log files to keep."""
 
-    DISABLE_RAY: bool = False
+    DISABLE_RAY: bool = True
     """Disable Ray for local testing."""
 
     RESOURCE_MONITOR_PERIOD: int = 10
