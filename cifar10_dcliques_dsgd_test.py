@@ -1,3 +1,9 @@
+import os
+# MUST be set before importing torch / lightning / p2pfl lightning wrappers
+os.environ["CUDA_VISIBLE_DEVICES"] = ""          # force no GPU
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"         # optional: quiet TF logs
+# os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"      # optional: deterministic CPU
+
 import time
 import argparse
 import os
