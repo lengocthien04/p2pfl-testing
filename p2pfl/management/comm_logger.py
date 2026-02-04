@@ -1,4 +1,6 @@
 from __future__ import annotations
+from collections import defaultdict
+
 
 import pickle
 import threading
@@ -37,6 +39,10 @@ class CommLogger:
         self._round_stats: Dict[int, RoundCommStats] = {}
         self._active_round: Optional[int] = None
         self._created_at = time.time()
+        self.bytes_out = defaultdict(int)
+        self.packets_out = defaultdict(int)
+        self.bytes_in = defaultdict(int)
+        self.packets_in = defaultdict(int)
 
     def start_round(self, round_idx: int) -> None:
         with self._lock:
@@ -103,20 +109,12 @@ class CommLogger:
             st.packets_in += 1
             st.bytes_in += int(num_bytes)
     def save_csv(self, path: str) -> None:
-        """
-        CSV columns:
-        round, packets_out, bytes_out
-        """
         with self._lock:
-            rounds = sorted(set(self.bytes_out.keys()) | set(self.packets_out.keys()))
+            items = sorted(self._round_stats.items(), key=lambda x: x[0])
 
-            with open(path, "w", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow(["round", "packets_out", "bytes_out"])
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["round", "packets_out", "bytes_out", "packets_in", "bytes_in"])
+            for r, s in items:
+                writer.writerow([r, s.packets_out, s.bytes_out, s.packets_in, s.bytes_in])
 
-                for r in rounds:
-                    writer.writerow([
-                        r,
-                        self.packets_out.get(r, 0),
-                        self.bytes_out.get(r, 0),
-                    ])

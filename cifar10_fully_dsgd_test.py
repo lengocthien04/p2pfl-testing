@@ -78,7 +78,7 @@ def main():
         comm_logger = getattr(proto, "comm_logger", None) if proto else None
         if comm_logger is not None:
             fname = f"cifar10_fully_node_{node.addr.replace(':','_')}.csv"
-            comm_logger.save_csv(os.path.join(base_dir, fname))
+            comm_logger.export_csv(os.path.join(base_dir, fname))
 
     # ---- stop nodes ----
     for node in nodes:

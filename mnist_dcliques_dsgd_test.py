@@ -166,11 +166,14 @@ def main():
     os.makedirs(base_dir, exist_ok=True)
 
     for node in nodes:
-        proto = getattr(node, "protocol", None)
+        proto = getattr(node, "_communication_protocol", None)
         comm_logger = getattr(proto, "comm_logger", None) if proto else None
+        if comm_logger is None:
+            print(f"[WARN] No comm_logger for {node.addr}")
+            continue
         if comm_logger is not None:
             fname = f"mnist_dcliques_node_{node.addr.replace(':','_')}.csv"
-            comm_logger.save_csv(os.path.join(base_dir, fname))
+            comm_logger.export_csv(os.path.join(base_dir, fname))
 
     # 9) Stop nodes
     for node in nodes:

@@ -256,8 +256,10 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
         """
         try:
             # ---- COMM LOG (OUTGOING) ----
-            if self.comm_logger is not None and msg.round is not None and msg.round >= 0:
-                self.comm_logger.record_send_bytes(msg.ByteSize(), round_idx=int(msg.round))
+            if self.comm_logger is not None:
+                r = getattr(msg, "round", None)
+                r = int(r) if r is not None else -1   # -1 = no round
+                self.comm_logger.record_send_bytes(msg.ByteSize(), round_idx=r)
 
             self._neighbors.get(nei).send(msg, raise_error=raise_error, disconnect_on_error=remove_on_error)
 
@@ -277,11 +279,13 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
         neis_clients = [nei[0] for nei in neis.values()]
 
         # ---- COMM LOG (OUTGOING) ----
-        if self.comm_logger is not None and msg.round is not None and msg.round >= 0:
+        if self.comm_logger is not None:
+            r = getattr(msg, "round", None)
+            r = int(r) if r is not None else -1
             per_packet_bytes = msg.ByteSize()
-            r = int(msg.round)
             for _ in neis_clients:
                 self.comm_logger.record_send_bytes(per_packet_bytes, round_idx=r)
+
 
         for nei in neis_clients:
             nei.send(msg)
