@@ -195,38 +195,57 @@ class Aggregator(NodeComponent):
         self.__agg_lock.release()
         return []
 
+    # def wait_and_get_aggregation(self, timeout: int = Settings.training.AGGREGATION_TIMEOUT) -> P2PFLModel:
+    #     """
+    #     Wait for aggregation to finish.
+
+    #     Args:
+    #         timeout: Timeout in seconds.
+
+    #     Returns:
+    #         Aggregated model.
+
+    #     Raises:
+    #         Exception: If waiting for an aggregated model and several models were received.
+
+    #     """
+    #     # Wait for aggregation to finish (then release the lock again)
+    #     event_set = self._finish_aggregation_event.wait(timeout=timeout)
+    #     # Check that the aggregation is finished
+    #     missing_models = self.get_missing_models()
+    #     # Check if aggregation has timed out or event has been set correctly
+    #     if not event_set:
+    #         logger.info(self.addr, f"⏳ Aggregation wait timed out. Missing models: {missing_models}")
+    #     else:
+    #         if len(missing_models) > 0:
+    #             logger.info(
+    #                 self.addr,
+    #                 f"❌ Aggregation event set, but missing models:  {missing_models}",
+    #             )
+    #         else:
+    #             logger.info(self.addr, "🧠 Aggregating models.")
+
+    #     # Notify node
+    #     return self.aggregate(self.__models)
     def wait_and_get_aggregation(self, timeout: int = Settings.training.AGGREGATION_TIMEOUT) -> P2PFLModel:
         """
-        Wait for aggregation to finish.
-
-        Args:
-            timeout: Timeout in seconds.
-
-        Returns:
-            Aggregated model.
-
-        Raises:
-            Exception: If waiting for an aggregated model and several models were received.
-
+        Wait for aggregation to finish (infinite wait).
         """
-        # Wait for aggregation to finish (then release the lock again)
-        event_set = self._finish_aggregation_event.wait(timeout=timeout)
-        # Check that the aggregation is finished
-        missing_models = self.get_missing_models()
-        # Check if aggregation has timed out or event has been set correctly
-        if not event_set:
-            logger.info(self.addr, f"⏳ Aggregation wait timed out. Missing models: {missing_models}")
-        else:
-            if len(missing_models) > 0:
-                logger.info(
-                    self.addr,
-                    f"❌ Aggregation event set, but missing models:  {missing_models}",
-                )
-            else:
-                logger.info(self.addr, "🧠 Aggregating models.")
+        while True:
+            # Wait forever until somebody signals progress
+            self._finish_aggregation_event.wait()   # <-- no timeout
 
-        # Notify node
-        return self.aggregate(self.__models)
+            missing_models = self.get_missing_models()
+
+            # If still missing, keep waiting
+            if len(missing_models) > 0:
+                # important: clear so we can wait for the next signal
+                self._finish_aggregation_event.clear()
+                continue
+
+            logger.info(self.addr, "🧠 Aggregating models.")
+            return self.aggregate(self.__models)
+
 
     def get_missing_models(self) -> set:
         """
