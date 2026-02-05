@@ -20,7 +20,7 @@
 from typing import Any
 
 from p2pfl.communication.commands.message.metrics_command import MetricsCommand
-from p2pfl.communication.commands.message.models_agregated_command import ModelsAggregatedCommand
+# from p2pfl.communication.commands.message.models_agregated_command import ModelsAggregatedCommand
 from p2pfl.communication.commands.message.models_ready_command import ModelsReadyCommand
 from p2pfl.communication.commands.weights.partial_model_command import PartialModelCommand
 from p2pfl.communication.protocols.communication_protocol import CommunicationProtocol
@@ -30,6 +30,7 @@ from p2pfl.management.logger import logger
 from p2pfl.node_state import NodeState
 from p2pfl.stages.stage import EarlyStopException, Stage, check_early_stop
 from p2pfl.stages.stage_factory import StageFactory
+from p2pfl.communication.commands.weights.full_model_command import FullModelCommand
 
 
 class TrainStage(Stage):
@@ -71,20 +72,32 @@ class TrainStage(Stage):
             logger.info(state.addr, "🎓 Training done.")
 
             check_early_stop(state)
+            encoded = learner.get_model().encode_parameters()
 
             # Aggregate Model
             models_added = aggregator.add_model(learner.get_model())
+            msg = communication_protocol.build_weights(
+            FullModelCommand.get_name(),
+            state.round,
+            encoded,
+            [state.addr],                 # contributors
+            learner.get_data().num_samples if hasattr(learner.get_data(), "num_samples") else 0,
+            )
 
+            # send to direct neighbors that are in train_set
+            for n in communication_protocol.get_neighbors(only_direct=True):
+                if n in state.train_set and n != state.addr:
+                    communication_protocol.send(n, msg)   # or whatever your protocol's unicast call is
             # send model added msg ---->> redundant (a node always owns its model)
             # TODO: print("Broadcast redundante")
-            communication_protocol.broadcast(
-                communication_protocol.build_msg(
-                    ModelsAggregatedCommand.get_name(),
-                    models_added,
-                    round=state.round,
-                )
-            )
-            TrainStage.__gossip_model_aggregation(state, communication_protocol, aggregator)
+            # communication_protocol.broadcast(
+            #     communication_protocol.build_msg(
+            #         ModelsAggregatedCommand.get_name(),
+            #         models_added,
+            #         round=state.round,
+            #     )
+            # )
+            # TrainStage.__gossip_model_aggregation(state, communication_protocol, aggregator)
 
             check_early_stop(state)
 
@@ -93,7 +106,7 @@ class TrainStage(Stage):
             learner.set_model(agg_model)
 
             # Share that aggregation is done
-            communication_protocol.broadcast(communication_protocol.build_msg(ModelsReadyCommand.get_name(), [], round=state.round))
+            # communication_protocol.broadcast(communication_protocol.build_msg(ModelsReadyCommand.get_name(), [], round=state.round))
 
             # Next stage
             return StageFactory.get_stage("GossipModelStage")

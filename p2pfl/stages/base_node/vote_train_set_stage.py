@@ -39,38 +39,50 @@ class VoteTrainSetStage(Stage):
         return "VoteTrainSetStage"
 
     @staticmethod
-    def execute(
-        trainset_size: int | None = None,
-        state: NodeState | None = None,
-        communication_protocol: CommunicationProtocol | None = None,
-        generator: random.Random | None = None,
-        **kwargs,
-    ) -> type["Stage"] | None:
-        """Execute the stage."""
-        if state is None or communication_protocol is None or trainset_size is None or generator is None:
-            raise Exception("Invalid parameters on VoteTrainSetStage.")
+    def execute(state, communication_protocol, **kwargs):
+        # clique-only:
+        nei = list(communication_protocol.get_neighbors(only_direct=True))
+        if state.addr not in nei:
+            nei.append(state.addr)
+        nei.sort()
+        state.train_set = nei
 
-        try:
-            direct = list(communication_protocol.get_neighbors(only_direct=True).keys())
+        logger.info(state.addr, f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}")
 
-            # candidate set = direct neighbors + self
-            candidates = sorted(set(direct + [state.addr]))
+        # everyone trains in D-SGD
+        return StageFactory.get_stage("TrainStage")
+    # def execute(
+    #     trainset_size: int | None = None,
+    #     state: NodeState | None = None,
+    #     communication_protocol: CommunicationProtocol | None = None,
+    #     generator: random.Random | None = None,
+    #     **kwargs,
+    # ) -> type["Stage"] | None:
+    #     """Execute the stage."""
+    #     if state is None or communication_protocol is None or trainset_size is None or generator is None:
+    #         raise Exception("Invalid parameters on VoteTrainSetStage.")
 
-            # safety: isolated node trains itself
-            if not candidates:
-                candidates = [state.addr]
+    #     try:
+    #         direct = list(communication_protocol.get_neighbors(only_direct=True).keys())
 
-            k = min(trainset_size, len(candidates))
-            state.train_set = candidates[:k]
+    #         # candidate set = direct neighbors + self
+    #         candidates = sorted(set(direct + [state.addr]))
 
-            logger.info(state.addr, f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}")
+    #         # safety: isolated node trains itself
+    #         if not candidates:
+    #             candidates = [state.addr]
 
-            if state.addr in state.train_set:
-                return StageFactory.get_stage("TrainStage")
-            else:
-                return StageFactory.get_stage("WaitAggregatedModelsStage")
-        except EarlyStopException:
-            return None
+    #         k = min(trainset_size, len(candidates))
+    #         state.train_set = candidates[:k]
+
+    #         logger.info(state.addr, f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}")
+
+    #         if state.addr in state.train_set:
+    #             return StageFactory.get_stage("TrainStage")
+    #         else:
+    #             return StageFactory.get_stage("WaitAggregatedModelsStage")
+    #     except EarlyStopException:
+    #         return None
 
     @staticmethod
     def __vote(trainset_size: int, state: NodeState, communication_protocol: CommunicationProtocol, generator: random.Random) -> None:

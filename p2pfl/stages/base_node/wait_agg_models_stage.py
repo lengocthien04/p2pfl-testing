@@ -46,11 +46,8 @@ class WaitAggregatedModelsStage(Stage):
         logger.info(state.addr, "⏳ Waiting aggregation.")
 
 
-        event_set = state.aggregated_model_event.wait(timeout=Settings.training.AGGREGATION_TIMEOUT)
-
-        if not event_set:
-            logger.warning(state.addr, "⏰ Aggregation timeout occurred. Keep waiting (do NOT advance).")
-            return StageFactory.get_stage("WaitAggregatedModelsStage")
+        # event_set = state.aggregated_model_event.wait(timeout=Settings.training.AGGREGATION_TIMEOUT)
+        state.aggregated_model_event.wait()  # wait forever
 
         logger.info(state.addr, "✅ Aggregation event received.")
         return StageFactory.get_stage("GossipModelStage")
