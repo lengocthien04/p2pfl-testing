@@ -47,27 +47,27 @@ class WaitAggregatedModelsStage(Stage):
 
 
         # event_set = state.aggregated_model_event.wait(timeout=Settings.training.AGGREGATION_TIMEOUT)
-        state.aggregated_model_event.wait()  # wait forever
+        state.aggregated_model_event.wait()
 
         logger.info(state.addr, "✅ Aggregation event received.")
         return StageFactory.get_stage("GossipModelStage")
 
         # Wait for aggregation to finish, if time over timeout log a warning message
-        event_set = state.aggregated_model_event.wait(timeout=Settings.training.AGGREGATION_TIMEOUT)
+        # event_set = state.aggregated_model_event.wait(timeout=Settings.training.AGGREGATION_TIMEOUT)
 
-        if event_set:
-            # The event was set before the timeout
-            logger.info(state.addr, "✅ Aggregation event received.")
-        else:
-            # The timeout occurred before the event was set
-            logger.warning(state.addr, "⏰ Aggregation timeout occurred.")
+        # if event_set:
+        #     # The event was set before the timeout
+        #     logger.info(state.addr, "✅ Aggregation event received.")
+        # else:
+        #     # The timeout occurred before the event was set
+        #     logger.warning(state.addr, "⏰ Aggregation timeout occurred.")
 
-        # Get aggregated model
-        logger.debug(
-            state.addr,
-            f"Broadcast aggregation done for round {state.round}",
-        )
+        # # Get aggregated model
+        # logger.debug(
+        #     state.addr,
+        #     f"Broadcast aggregation done for round {state.round}",
+        # )
         # Share that aggregation is done
         # communication_protocol.broadcast(communication_protocol.build_msg(ModelsReadyCommand.get_name(), [], round=state.round))
 
-        return StageFactory.get_stage("GossipModelStage")
+        # return StageFactory.get_stage("GossipModelStage")
