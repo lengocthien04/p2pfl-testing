@@ -46,6 +46,7 @@ class VoteTrainSetStage(Stage):
         state.train_set = train_set
 
         logger.info(state.addr, f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}")
+        logger.info(state.addr, f"direct_nei={list(communication_protocol.get_neighbors(only_direct=True).keys())}")
 
         # everyone trains every round
         return StageFactory.get_stage("TrainStage")
