@@ -150,6 +150,7 @@ def main():
             data=datashards[i],
             addr=f"127.0.0.1:{args.base_port + i}",
             aggregator=DSGD(),   # <-- key change vs FedAvg
+            
         )
         node.start()
         nodes.append(node)

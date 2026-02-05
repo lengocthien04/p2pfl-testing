@@ -147,7 +147,7 @@ class TrainStage(Stage):
                     n,
                     TrainStage.__get_aggregated_models(n, state),
                 )  # reemplazar por Aggregator - borrarlo de node
-                for n in communication_protocol.get_neighbors(only_direct=False)
+                for n in communication_protocol.get_neighbors(only_direct=True)
                 if (n in state.train_set)
             ]
 
@@ -184,7 +184,7 @@ class TrainStage(Stage):
             get_candidates_fn,
             status_fn,
             model_fn,
-            create_connection=True,
+            create_connection=False,
         )
 
     @staticmethod

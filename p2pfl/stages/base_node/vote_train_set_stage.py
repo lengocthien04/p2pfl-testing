@@ -51,25 +51,23 @@ class VoteTrainSetStage(Stage):
             raise Exception("Invalid parameters on VoteTrainSetStage.")
 
         try:
-            # Vote
-            # VoteTrainSetStage.__vote(trainset_size, state, communication_protocol, generator)
+            direct = list(communication_protocol.get_neighbors(only_direct=True).keys())
 
-            # Aggregate votes
-            # state.train_set = VoteTrainSetStage.__validate_train_set(
-            #     VoteTrainSetStage.__aggregate_votes(trainset_size, state, communication_protocol),
-            #     state,
-            #     communication_protocol,
-            # )
-            logger.info(
-                state.addr,
-                f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}",
-            )
+            # candidate set = direct neighbors + self
+            candidates = sorted(set(direct + [state.addr]))
 
-            # Next stage
+            # safety: isolated node trains itself
+            if not candidates:
+                candidates = [state.addr]
+
+            k = min(trainset_size, len(candidates))
+            state.train_set = candidates[:k]
+
+            logger.info(state.addr, f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}")
+
             if state.addr in state.train_set:
                 return StageFactory.get_stage("TrainStage")
             else:
-                logger.debug(state.addr, "Node not in train set. Proceeding to WaitAggregatedModelsStage.")
                 return StageFactory.get_stage("WaitAggregatedModelsStage")
         except EarlyStopException:
             return None

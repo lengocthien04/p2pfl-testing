@@ -169,7 +169,7 @@ class Node:
         # Connect
         return self._communication_protocol.connect(addr)
 
-    def get_neighbors(self, only_direct: bool = False) -> dict[str, Any]:
+    def get_neighbors(self, only_direct: bool = True) -> dict[str, Any]:
         """
         Return the neighbors of the node.
 

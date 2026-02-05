@@ -68,7 +68,7 @@ def wait_convergence(
     nodes: list[Node | CommunicationProtocol],
     n_neis: int,
     wait: int | float = 5,
-    only_direct: bool = False,
+    only_direct: bool = True,
     debug: bool = False,
 ) -> None:
     """

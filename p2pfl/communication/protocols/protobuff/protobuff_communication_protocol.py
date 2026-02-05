@@ -292,7 +292,7 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
 
 
     @running
-    def get_neighbors(self, only_direct: bool = False) -> dict[str, Any]:
+    def get_neighbors(self, only_direct: bool = True) -> dict[str, Any]:
         """
         Get the neighbors.
 
