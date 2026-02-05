@@ -54,24 +54,65 @@ class FullModelCommand(Command):
         if weights is None:
             raise ValueError("Weights, contributors and weight are required")
 
+        # # Check if Learning is running
+        # if self.state.round is not None:
+        #     # Check source
+        #     if round != self.state.round:
+        #         logger.debug(
+        #             self.state.addr,
+        #             f"Model reception in a late round ({round} != {self.state.round}).",
+        #         )
+        #         return
+        #     if self.state.aggregated_model_event.is_set():
+        #         logger.debug(self.state.addr, "😲 Aggregated model not expected.")
+        #         return
+        #     try:
+        #         logger.info(self.state.addr, "📦 Aggregated model received.")
+        #         # Decode and set model
+        #         self.learner.set_model(weights)
+        #         # Release here caused the simulation to crash before
+        #         self.state.aggregated_model_event.set()
+
         # Check if Learning is running
         if self.state.round is not None:
-            # Check source
+            # Round guard
             if round != self.state.round:
                 logger.debug(
                     self.state.addr,
                     f"Model reception in a late round ({round} != {self.state.round}).",
                 )
                 return
-            if self.state.aggregated_model_event.is_set():
-                logger.debug(self.state.addr, "😲 Aggregated model not expected.")
-                return
+
             try:
-                logger.info(self.state.addr, "📦 Aggregated model received.")
-                # Decode and set model
+                # For sync learning: treat this as a neighbor model contribution
+                logger.info(self.state.addr, f"📦 Model received from {source}.")
+
+                # Decode weights into a P2PFLModel instance.
+                # We keep learner decoding to reuse framework checks.
                 self.learner.set_model(weights)
-                # Release here caused the simulation to crash before
-                self.state.aggregated_model_event.set()
+                model = self.learner.get_model()
+
+                # IMPORTANT: Aggregator requires non-empty contributors, and it must match train_set membership.
+                # In sync d-SGD / neighbor averaging, each received model counts as one contributor: the sender.
+                if hasattr(model, "set_contributors"):
+                    model.set_contributors([source])
+                elif hasattr(model, "contributors"):
+                    model.contributors = [source]
+                elif hasattr(model, "_contributors"):
+                    model._contributors = [source]
+
+                # Optional: carry sample count if present
+                num_samples = kwargs.get("num_samples", None)
+                if num_samples is not None:
+                    if hasattr(model, "set_num_samples"):
+                        model.set_num_samples(num_samples)
+                    elif hasattr(model, "num_samples"):
+                        model.num_samples = num_samples
+                    elif hasattr(model, "_num_samples"):
+                        model._num_samples = num_samples
+
+                # Feed into aggregator (this is what unblocks wait_and_get_aggregation)
+                self.aggregator.add_model(model)
 
             # Warning: these stops can cause a denegation of service attack
             except DecodingParamsError:

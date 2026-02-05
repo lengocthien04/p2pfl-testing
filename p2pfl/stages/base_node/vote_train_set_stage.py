@@ -42,12 +42,9 @@ class VoteTrainSetStage(Stage):
     def execute(state: NodeState, communication_protocol: CommunicationProtocol, **kwargs):
         # direct neighbors (dict keys) + self
         direct = list(communication_protocol.get_neighbors(only_direct=True).keys())
-        train_set = sorted(set(direct + [state.addr]))
-        state.train_set = train_set
-
+        state.train_set = sorted(set(direct + [state.addr]))
+        state.aggregated_model_event.clear()
         logger.info(state.addr, f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}")
-        logger.info(state.addr, f"direct_nei={list(communication_protocol.get_neighbors(only_direct=True).keys())}")
-
         # everyone trains every round
         return StageFactory.get_stage("TrainStage")
     # def execute(
