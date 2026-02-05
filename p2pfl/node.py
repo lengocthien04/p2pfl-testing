@@ -135,7 +135,7 @@ class Node:
             StartLearningCommand(self.__start_learning_thread),
             StopLearningCommand(self.state, self.aggregator, self.learner),
             ModelInitializedCommand(self.state),
-            # VoteTrainSetCommand(self.state),
+            VoteTrainSetCommand(self.state),
             ModelsAggregatedCommand(self.state),
             ModelsReadyCommand(self.state),
             MetricsCommand(self.state),

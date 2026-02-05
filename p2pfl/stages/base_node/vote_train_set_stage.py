@@ -52,18 +52,18 @@ class VoteTrainSetStage(Stage):
 
         try:
             # Vote
-            VoteTrainSetStage.__vote(trainset_size, state, communication_protocol, generator)
+            # VoteTrainSetStage.__vote(trainset_size, state, communication_protocol, generator)
 
             # Aggregate votes
-            state.train_set = VoteTrainSetStage.__validate_train_set(
-                VoteTrainSetStage.__aggregate_votes(trainset_size, state, communication_protocol),
-                state,
-                communication_protocol,
-            )
-            logger.info(
-                state.addr,
-                f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}",
-            )
+            # state.train_set = VoteTrainSetStage.__validate_train_set(
+            #     VoteTrainSetStage.__aggregate_votes(trainset_size, state, communication_protocol),
+            #     state,
+            #     communication_protocol,
+            # )
+            # logger.info(
+            #     state.addr,
+            #     f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}",
+            # )
 
             # Next stage
             if state.addr in state.train_set:
