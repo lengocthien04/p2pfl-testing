@@ -60,10 +60,10 @@ class VoteTrainSetStage(Stage):
             #     state,
             #     communication_protocol,
             # )
-            # logger.info(
-            #     state.addr,
-            #     f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}",
-            # )
+            logger.info(
+                state.addr,
+                f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}",
+            )
 
             # Next stage
             if state.addr in state.train_set:
