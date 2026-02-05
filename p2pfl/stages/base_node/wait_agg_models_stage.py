@@ -44,6 +44,17 @@ class WaitAggregatedModelsStage(Stage):
         # clear here instead of aquiring in vote_train_set_stage
         state.aggregated_model_event.clear()
         logger.info(state.addr, "⏳ Waiting aggregation.")
+
+
+        event_set = state.aggregated_model_event.wait(timeout=Settings.training.AGGREGATION_TIMEOUT)
+
+        if not event_set:
+            logger.warning(state.addr, "⏰ Aggregation timeout occurred. Keep waiting (do NOT advance).")
+            return StageFactory.get_stage("WaitAggregatedModelsStage")
+
+        logger.info(state.addr, "✅ Aggregation event received.")
+        return StageFactory.get_stage("GossipModelStage")
+
         # Wait for aggregation to finish, if time over timeout log a warning message
         event_set = state.aggregated_model_event.wait(timeout=Settings.training.AGGREGATION_TIMEOUT)
 
@@ -60,6 +71,6 @@ class WaitAggregatedModelsStage(Stage):
             f"Broadcast aggregation done for round {state.round}",
         )
         # Share that aggregation is done
-        communication_protocol.broadcast(communication_protocol.build_msg(ModelsReadyCommand.get_name(), [], round=state.round))
+        # communication_protocol.broadcast(communication_protocol.build_msg(ModelsReadyCommand.get_name(), [], round=state.round))
 
         return StageFactory.get_stage("GossipModelStage")
