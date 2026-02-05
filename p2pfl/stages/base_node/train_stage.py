@@ -73,22 +73,19 @@ class TrainStage(Stage):
 
             check_early_stop(state)
             encoded = learner.get_model().encode_parameters()
+            aggregator.add_model(learner.get_model())
 
-            # Aggregate Model
-            models_added = aggregator.add_model(learner.get_model())
+            # Send my FULL model to direct neighbors (sync)
             msg = communication_protocol.build_weights(
-            FullModelCommand.get_name(),
-            state.round,
-            encoded,
-            [state.addr],                 # contributors
-            learner.get_data().num_samples if hasattr(learner.get_data(), "num_samples") else 0,
+                FullModelCommand.get_name(),
+                state.round,
+                encoded,
             )
 
             # send to direct neighbors that are in train_set
-            for n in communication_protocol.get_neighbors(only_direct=True):
+            for n in communication_protocol.get_neighbors(only_direct=True).keys():
                 if n in state.train_set and n != state.addr:
-                    communication_protocol.send(n, msg)   # or whatever your protocol's unicast call is
-            # send model added msg ---->> redundant (a node always owns its model)
+                    communication_protocol.send(n, msg)
             # TODO: print("Broadcast redundante")
             # communication_protocol.broadcast(
             #     communication_protocol.build_msg(
