@@ -159,7 +159,7 @@ class TrainStage(Stage):
             # communication_protocol.broadcast(communication_protocol.build_msg(ModelsReadyCommand.get_name(), [], round=state.round))
 
             # Next stage
-            return StageFactory.get_stage("GossipModelStage")
+            return StageFactory.get_stage("RoundFinishedStage")
         except EarlyStopException:
             return None
 
