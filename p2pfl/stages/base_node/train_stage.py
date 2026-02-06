@@ -81,7 +81,12 @@ class TrainStage(Stage):
             encoded = learner.get_model().encode_parameters()
             
             # 2. Add self to aggregator
-            aggregator.add_model(learner.get_model())
+            # FIX: Must copy the model, otherwise buffer processing will overwrite 'Self' weights
+            self_model = learner.get_model()
+            self_copy = self_model.build_copy(params=self_model.get_parameters(), 
+                                              num_samples=self_model.get_num_samples(), 
+                                              contributors=self_model.get_contributors())
+            aggregator.add_model(self_copy)
             
             # 3. Process any models buffered during training
             # Loop to ensure we catch models that arrive WHILE we are processing the buffer
@@ -113,7 +118,11 @@ class TrainStage(Stage):
                             elif hasattr(model, "num_samples"): model.num_samples = ns
                             elif hasattr(model, "_num_samples"): model._num_samples = ns
                         
-                        aggregator.add_model(model)
+                        # FIX: Copy model to prevent reference issues
+                        model_copy = model.build_copy(params=model.get_parameters(),
+                                                      num_samples=model.get_num_samples(),
+                                                      contributors=model.get_contributors())
+                        aggregator.add_model(model_copy)
 
             # Send my FULL model to direct neighbors (sync)
             msg = communication_protocol.build_weights(
@@ -125,17 +134,20 @@ class TrainStage(Stage):
             # send to direct neighbors that are in train_set
             for n in state.train_set:
                 if n != state.addr:
-                    try:
-                        communication_protocol.send(n, msg)
-                    except Exception as e:
-                        logger.warning(state.addr, f"⚠️ Connection lost with {n} during training. Reconnecting... ({e})")
+                    # Retry loop for robustness
+                    for attempt in range(3):
                         try:
-                            # Attempt to reconnect and resend
-                            communication_protocol.connect(n)
-                            time.sleep(0.5) # Allow handshake to complete
                             communication_protocol.send(n, msg)
-                        except Exception as e2:
-                            logger.error(state.addr, f"❌ Failed to resend model to {n}: {e2}")
+                            break # Success
+                        except Exception as e:
+                            if attempt < 2:
+                                logger.warning(state.addr, f"⚠️ Send to {n} failed (attempt {attempt+1}). Retrying... ({e})")
+                                try:
+                                    communication_protocol.connect(n)
+                                    time.sleep(0.5)
+                                except: pass
+                            else:
+                                logger.error(state.addr, f"❌ Failed to send model to {n} after retries: {e}")
             # TODO: print("Broadcast redundante")
             # communication_protocol.broadcast(
             #     communication_protocol.build_msg(
@@ -149,6 +161,8 @@ class TrainStage(Stage):
             check_early_stop(state)
 
             # Set aggregated model
+            # Debug log to see who we are waiting for
+            logger.info(state.addr, f"⏳ Waiting for aggregation. Expecting: {len(state.train_set)} nodes.")
             with torch.no_grad():
                 agg_model = aggregator.wait_and_get_aggregation()
             

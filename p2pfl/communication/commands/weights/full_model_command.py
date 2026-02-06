@@ -114,7 +114,11 @@ class FullModelCommand(Command):
                                 model._num_samples = num_samples
 
                         # Feed into aggregator
-                        self.aggregator.add_model(model)
+                        # FIX: Copy model to prevent reference issues
+                        model_copy = model.build_copy(params=model.get_parameters(),
+                                                      num_samples=model.get_num_samples(),
+                                                      contributors=model.get_contributors())
+                        self.aggregator.add_model(model_copy)
                     finally:
                         self.state.model_update_lock.release()
                 else:
