@@ -151,4 +151,9 @@ class FullModelCommand(Command):
                 logger.error(self.state.addr, f"❌ Unknown error adding full model: {e}")
                 self.stop()
         else:
-            logger.debug(self.state.addr, "❌ Tried to add a model while learning is not running")
+            # Learning not started yet (or finished). Buffer as future model to avoid dropping early arrivals.
+            logger.info(self.state.addr, f"📥 Buffering model from {source} for round {round} (Learning not started).")
+            with self.state.incoming_models_lock:
+                if round not in self.state.future_incoming_models:
+                    self.state.future_incoming_models[round] = []
+                self.state.future_incoming_models[round].append({"source": source, "weights": weights, "kwargs": kwargs})
