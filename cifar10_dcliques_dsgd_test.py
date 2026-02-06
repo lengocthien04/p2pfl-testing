@@ -6,7 +6,6 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"         # optional: quiet TF logs
 
 import time
 import argparse
-import os
 from datetime import datetime
 from collections import Counter
 from typing import Dict, Any
@@ -30,6 +29,7 @@ def connect_from_matrix(matrix: list[list[int]], nodes: list[Node]) -> None:
         for j in range(i + 1, n):
             if matrix[i][j] == 1:
                 nodes[i].connect(nodes[j].addr)
+                nodes[j].connect(nodes[i].addr)
                 time.sleep(0.05)
 
 
@@ -157,6 +157,10 @@ def main():
 
     # 6) Connect according to D-Cliques matrix
     connect_from_matrix(matrix, nodes)
+
+    # Wait for network stabilization before high CPU load
+    print("Waiting for network stabilization...")
+    time.sleep(5)
 
    # 7) Start learning
     nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs)

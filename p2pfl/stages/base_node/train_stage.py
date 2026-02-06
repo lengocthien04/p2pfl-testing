@@ -18,7 +18,9 @@
 """Train stage."""
 
 from typing import Any
+import time
 
+import torch
 from p2pfl.communication.commands.message.metrics_command import MetricsCommand
 # from p2pfl.communication.commands.message.models_agregated_command import ModelsAggregatedCommand
 from p2pfl.communication.commands.message.models_ready_command import ModelsReadyCommand
@@ -74,6 +76,8 @@ class TrainStage(Stage):
             check_early_stop(state)
             encoded = learner.get_model().encode_parameters()
             aggregator.add_model(learner.get_model())
+            with torch.no_grad():
+                aggregator.add_model(learner.get_model())
 
             # Send my FULL model to direct neighbors (sync)
             msg = communication_protocol.build_weights(
@@ -85,7 +89,17 @@ class TrainStage(Stage):
             # send to direct neighbors that are in train_set
             for n in communication_protocol.get_neighbors(only_direct=True).keys():
                 if n in state.train_set and n != state.addr:
-                    communication_protocol.send(n, msg)
+                    try:
+                        communication_protocol.send(n, msg)
+                    except Exception as e:
+                        logger.warning(state.addr, f"⚠️ Connection lost with {n} during training. Reconnecting... ({e})")
+                        try:
+                            # Attempt to reconnect and resend
+                            communication_protocol.connect(n)
+                            time.sleep(0.5) # Allow handshake to complete
+                            communication_protocol.send(n, msg)
+                        except Exception as e2:
+                            logger.error(state.addr, f"❌ Failed to resend model to {n}: {e2}")
             # TODO: print("Broadcast redundante")
             # communication_protocol.broadcast(
             #     communication_protocol.build_msg(
@@ -100,6 +114,8 @@ class TrainStage(Stage):
 
             # Set aggregated model
             agg_model = aggregator.wait_and_get_aggregation()
+            with torch.no_grad():
+                agg_model = aggregator.wait_and_get_aggregation()
             learner.set_model(agg_model)
 
             # Share that aggregation is done
