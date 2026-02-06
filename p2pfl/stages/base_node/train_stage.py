@@ -58,6 +58,13 @@ class TrainStage(Stage):
         try:
             check_early_stop(state)
 
+            # Promote future models received during previous round transitions
+            with state.incoming_models_lock:
+                if state.round in state.future_incoming_models:
+                    logger.info(state.addr, f"⏩ Promoting {len(state.future_incoming_models[state.round])} future models.")
+                    state.incoming_models_buffer.extend(state.future_incoming_models[state.round])
+                    del state.future_incoming_models[state.round]
+
             # Set Models To Aggregate
             aggregator.set_nodes_to_aggregate(state.train_set)
 

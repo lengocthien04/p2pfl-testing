@@ -76,11 +76,18 @@ class FullModelCommand(Command):
         # Check if Learning is running
         if self.state.round is not None:
             # Round guard
-            if round != self.state.round:
+            if round < self.state.round:
                 logger.debug(
                     self.state.addr,
-                    f"Model reception in a late round ({round} != {self.state.round}).",
+                    f"Model reception in a late round ({round} < {self.state.round}).",
                 )
+                return
+            elif round > self.state.round:
+                logger.info(self.state.addr, f"📥 Buffering future model from {source} for round {round}.")
+                with self.state.incoming_models_lock:
+                    if round not in self.state.future_incoming_models:
+                        self.state.future_incoming_models[round] = []
+                    self.state.future_incoming_models[round].append({"source": source, "weights": weights, "kwargs": kwargs})
                 return
 
             try:

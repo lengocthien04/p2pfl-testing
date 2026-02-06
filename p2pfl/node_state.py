@@ -76,6 +76,9 @@ class NodeState:
         self.incoming_models_buffer: list[dict] = []
         self.incoming_models_lock = threading.Lock()
 
+        # Buffer for models received for future rounds (e.g. fast neighbors)
+        self.future_incoming_models: dict[int, list[dict]] = {}
+
         # Locks
         self.train_set_votes_lock = threading.Lock()
         self.start_thread_lock = threading.Lock()
