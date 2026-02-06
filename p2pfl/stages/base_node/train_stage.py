@@ -123,8 +123,8 @@ class TrainStage(Stage):
             )
 
             # send to direct neighbors that are in train_set
-            for n in communication_protocol.get_neighbors(only_direct=True).keys():
-                if n in state.train_set and n != state.addr:
+            for n in state.train_set:
+                if n != state.addr:
                     try:
                         communication_protocol.send(n, msg)
                     except Exception as e:

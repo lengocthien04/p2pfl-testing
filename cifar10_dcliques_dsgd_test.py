@@ -28,8 +28,17 @@ def connect_from_matrix(matrix: list[list[int]], nodes: list[Node]) -> None:
     for i in range(n):
         for j in range(i + 1, n):
             if matrix[i][j] == 1:
-                nodes[i].connect(nodes[j].addr)
-                time.sleep(0.05)
+                # For D-SGD, the communication graph must be symmetric (bidirectional).
+                # A simple unidirectional connect leads to inconsistent `train_set`s and deadlock.
+                # We must ensure both nodes successfully connect to each other and retry if it fails.
+                for attempt in range(3):
+                    c1 = nodes[i].connect(nodes[j].addr)
+                    c2 = nodes[j].connect(nodes[i].addr)
+                    if c1 and c2:
+                        break  # Success
+                    print(f"Connection failed between {nodes[i].addr} and {nodes[j].addr}, retrying in 0.5s...")
+                    time.sleep(0.5)
+                time.sleep(0.02)
 
 
 def extract_label_counts_from_shard(shard: Any, label_key: str = "label") -> Dict[str, int]:
