@@ -76,8 +76,40 @@ class TrainStage(Stage):
             logger.info(state.addr, "🎓 Training done.")
 
             check_early_stop(state)
+            
+            # 1. Capture local model for sending
             encoded = learner.get_model().encode_parameters()
+            
+            # 2. Add self to aggregator
             aggregator.add_model(learner.get_model())
+            
+            # 3. Process any models buffered during training
+            with state.incoming_models_lock:
+                buffered_models = state.incoming_models_buffer[:]
+                state.incoming_models_buffer.clear()
+            
+            if buffered_models:
+                logger.info(state.addr, f"🔄 Processing {len(buffered_models)} buffered models.")
+                for item in buffered_models:
+                    # Use learner to decode (safe now as training is done)
+                    learner.set_model(item["weights"])
+                    model = learner.get_model()
+                    
+                    # Apply metadata logic (same as FullModelCommand)
+                    src = item["source"]
+                    if hasattr(model, "set_contributors"): model.set_contributors([src])
+                    elif hasattr(model, "contributors"): model.contributors = [src]
+                    elif hasattr(model, "_contributors"): model._contributors = [src]
+
+                    ns = item["kwargs"].get("num_samples", None)
+                    if ns is not None:
+                        if hasattr(model, "set_num_samples"): model.set_num_samples(ns)
+                        elif hasattr(model, "num_samples"): model.num_samples = ns
+                        elif hasattr(model, "_num_samples"): model._num_samples = ns
+                    
+                    aggregator.add_model(model)
+
+            # 4. Double check aggregation (redundant in original code but kept for structure)
             with torch.no_grad():
                 aggregator.add_model(learner.get_model())
 

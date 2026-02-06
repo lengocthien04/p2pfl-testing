@@ -90,31 +90,42 @@ class FullModelCommand(Command):
                 # Decode weights into a P2PFLModel instance.
                 # We keep learner decoding to reuse framework checks.
                 # IMPORTANT: do not mutate model during training/backward
-                with self.state.model_update_lock:
-                    self.learner.set_model(weights)
-                    model = self.learner.get_model()
+                # FIX: If locked (training), buffer the model to avoid DEADLINE_EXCEEDED
+                if self.state.model_update_lock.acquire(blocking=False):
+                    try:
+                        self.learner.set_model(weights)
+                        model = self.learner.get_model()
+                        
+                        # Set metadata
+                        if hasattr(model, "set_contributors"):
+                            model.set_contributors([source])
+                        elif hasattr(model, "contributors"):
+                            model.contributors = [source]
+                        elif hasattr(model, "_contributors"):
+                            model._contributors = [source]
 
-                # IMPORTANT: Aggregator requires non-empty contributors, and it must match train_set membership.
-                # In sync d-SGD / neighbor averaging, each received model counts as one contributor: the sender.
-                if hasattr(model, "set_contributors"):
-                    model.set_contributors([source])
-                elif hasattr(model, "contributors"):
-                    model.contributors = [source]
-                elif hasattr(model, "_contributors"):
-                    model._contributors = [source]
+                        num_samples = kwargs.get("num_samples", None)
+                        if num_samples is not None:
+                            if hasattr(model, "set_num_samples"):
+                                model.set_num_samples(num_samples)
+                            elif hasattr(model, "num_samples"):
+                                model.num_samples = num_samples
+                            elif hasattr(model, "_num_samples"):
+                                model._num_samples = num_samples
 
-                # Optional: carry sample count if present
-                num_samples = kwargs.get("num_samples", None)
-                if num_samples is not None:
-                    if hasattr(model, "set_num_samples"):
-                        model.set_num_samples(num_samples)
-                    elif hasattr(model, "num_samples"):
-                        model.num_samples = num_samples
-                    elif hasattr(model, "_num_samples"):
-                        model._num_samples = num_samples
-
-                # Feed into aggregator (this is what unblocks wait_and_get_aggregation)
-                self.aggregator.add_model(model)
+                        # Feed into aggregator
+                        self.aggregator.add_model(model)
+                    finally:
+                        self.state.model_update_lock.release()
+                else:
+                    # Training is busy, buffer the model
+                    logger.info(self.state.addr, f"📥 Buffering model from {source} (Training busy).")
+                    with self.state.incoming_models_lock:
+                        self.state.incoming_models_buffer.append({
+                            "source": source,
+                            "weights": weights,
+                            "kwargs": kwargs
+                        })
 
             # Warning: these stops can cause a denegation of service attack
             except DecodingParamsError:

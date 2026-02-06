@@ -72,6 +72,10 @@ class NodeState:
         self.sending_models: dict[str, dict[str, float]] = {}
         self.sending_models_lock = threading.Lock()
 
+        # Buffer for models received while training (to avoid DEADLINE_EXCEEDED)
+        self.incoming_models_buffer: list[dict] = []
+        self.incoming_models_lock = threading.Lock()
+
         # Locks
         self.train_set_votes_lock = threading.Lock()
         self.start_thread_lock = threading.Lock()
