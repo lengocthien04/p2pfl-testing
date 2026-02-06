@@ -70,7 +70,9 @@ class TrainStage(Stage):
 
             # Train
             logger.info(state.addr, "🏋️‍♀️ Training...")
-            learner.fit()
+            # Block any network thread from calling learner.set_model during backward()
+            with state.model_update_lock:
+                learner.fit()
             logger.info(state.addr, "🎓 Training done.")
 
             check_early_stop(state)
@@ -116,7 +118,9 @@ class TrainStage(Stage):
             agg_model = aggregator.wait_and_get_aggregation()
             with torch.no_grad():
                 agg_model = aggregator.wait_and_get_aggregation()
-            learner.set_model(agg_model)
+            
+            with state.model_update_lock:
+                learner.set_model(agg_model)
 
             # Share that aggregation is done
             # communication_protocol.broadcast(communication_protocol.build_msg(ModelsReadyCommand.get_name(), [], round=state.round))

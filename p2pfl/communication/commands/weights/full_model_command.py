@@ -89,8 +89,10 @@ class FullModelCommand(Command):
 
                 # Decode weights into a P2PFLModel instance.
                 # We keep learner decoding to reuse framework checks.
-                self.learner.set_model(weights)
-                model = self.learner.get_model()
+                # IMPORTANT: do not mutate model during training/backward
+                with self.state.model_update_lock:
+                    self.learner.set_model(weights)
+                    model = self.learner.get_model()
 
                 # IMPORTANT: Aggregator requires non-empty contributors, and it must match train_set membership.
                 # In sync d-SGD / neighbor averaging, each received model counts as one contributor: the sender.

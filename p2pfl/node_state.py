@@ -18,6 +18,7 @@
 """Node state."""
 
 import threading
+from threading import RLock
 
 from p2pfl.experiment import Experiment
 from p2pfl.management.logger import logger
@@ -49,6 +50,9 @@ class NodeState:
         """Initialize the node state."""
         self.addr = addr
         self.status = "Idle"
+
+        # Prevent model being mutated while backward() is running
+        self.model_update_lock = RLock()
 
         # Aggregator (move to the aggregator?)
         self.models_aggregated_lock = threading.Lock()
