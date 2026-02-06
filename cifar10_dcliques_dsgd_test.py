@@ -29,7 +29,6 @@ def connect_from_matrix(matrix: list[list[int]], nodes: list[Node]) -> None:
         for j in range(i + 1, n):
             if matrix[i][j] == 1:
                 nodes[i].connect(nodes[j].addr)
-                nodes[j].connect(nodes[i].addr)
                 time.sleep(0.05)
 
 
