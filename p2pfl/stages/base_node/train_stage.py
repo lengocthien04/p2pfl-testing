@@ -84,34 +84,36 @@ class TrainStage(Stage):
             aggregator.add_model(learner.get_model())
             
             # 3. Process any models buffered during training
-            with state.incoming_models_lock:
-                buffered_models = state.incoming_models_buffer[:]
-                state.incoming_models_buffer.clear()
-            
-            if buffered_models:
-                logger.info(state.addr, f"🔄 Processing {len(buffered_models)} buffered models.")
-                for item in buffered_models:
-                    # Use learner to decode (safe now as training is done)
-                    learner.set_model(item["weights"])
-                    model = learner.get_model()
-                    
-                    # Apply metadata logic (same as FullModelCommand)
-                    src = item["source"]
-                    if hasattr(model, "set_contributors"): model.set_contributors([src])
-                    elif hasattr(model, "contributors"): model.contributors = [src]
-                    elif hasattr(model, "_contributors"): model._contributors = [src]
+            # Loop to ensure we catch models that arrive WHILE we are processing the buffer
+            while True:
+                with state.incoming_models_lock:
+                    if not state.incoming_models_buffer:
+                        break
+                    buffered_models = state.incoming_models_buffer[:]
+                    state.incoming_models_buffer.clear()
+                
+                # We MUST hold the lock here. If we don't, FullModelCommand might try 
+                # to update the learner at the same time, or buffer more items that we miss.
+                with state.model_update_lock:
+                    logger.info(state.addr, f"🔄 Processing {len(buffered_models)} buffered models.")
+                    for item in buffered_models:
+                        # Use learner to decode
+                        learner.set_model(item["weights"])
+                        model = learner.get_model()
+                        
+                        # Apply metadata logic
+                        src = item["source"]
+                        if hasattr(model, "set_contributors"): model.set_contributors([src])
+                        elif hasattr(model, "contributors"): model.contributors = [src]
+                        elif hasattr(model, "_contributors"): model._contributors = [src]
 
-                    ns = item["kwargs"].get("num_samples", None)
-                    if ns is not None:
-                        if hasattr(model, "set_num_samples"): model.set_num_samples(ns)
-                        elif hasattr(model, "num_samples"): model.num_samples = ns
-                        elif hasattr(model, "_num_samples"): model._num_samples = ns
-                    
-                    aggregator.add_model(model)
-
-            # 4. Double check aggregation (redundant in original code but kept for structure)
-            with torch.no_grad():
-                aggregator.add_model(learner.get_model())
+                        ns = item["kwargs"].get("num_samples", None)
+                        if ns is not None:
+                            if hasattr(model, "set_num_samples"): model.set_num_samples(ns)
+                            elif hasattr(model, "num_samples"): model.num_samples = ns
+                            elif hasattr(model, "_num_samples"): model._num_samples = ns
+                        
+                        aggregator.add_model(model)
 
             # Send my FULL model to direct neighbors (sync)
             msg = communication_protocol.build_weights(
@@ -147,7 +149,6 @@ class TrainStage(Stage):
             check_early_stop(state)
 
             # Set aggregated model
-            agg_model = aggregator.wait_and_get_aggregation()
             with torch.no_grad():
                 agg_model = aggregator.wait_and_get_aggregation()
             
