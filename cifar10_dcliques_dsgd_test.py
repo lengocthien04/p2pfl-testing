@@ -78,7 +78,7 @@ def extract_label_counts_from_shard(shard: Any, label_key: str = "label") -> Dic
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=10)
+    ap.add_argument("--n", type=int, default=2)
     ap.add_argument("--base-port", type=int, default=6666)
     ap.add_argument("--rounds", type=int, default=5)
     ap.add_argument("--epochs", type=int, default=1)
@@ -95,6 +95,9 @@ def main():
     ap.add_argument("--small-world-c", type=int, default=2)
 
     args = ap.parse_args()
+
+    # Reduce thread contention: prevent 10 nodes from spawning 10x CPU threads each
+    os.environ["OMP_NUM_THREADS"] = "1"
 
     # 1) Load dataset + partition
     dataset = P2PFLDataset.from_huggingface("p2pfl/CIFAR10")
@@ -147,6 +150,7 @@ def main():
         )
         node.start()
         nodes.append(node)
+        time.sleep(0.5) # Stagger start to reduce initialization load
 
     # 6) Connect according to D-Cliques matrix
     connect_from_matrix(matrix, nodes)
