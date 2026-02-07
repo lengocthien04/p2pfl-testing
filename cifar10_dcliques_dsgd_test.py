@@ -1,4 +1,6 @@
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = ""         
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2" 
 import time
 import argparse
 from datetime import datetime
@@ -150,14 +152,10 @@ def main():
         )
         node.start()
         nodes.append(node)
-        time.sleep(0.5) # Stagger start to reduce initialization load
 
     # 6) Connect according to D-Cliques matrix
     connect_from_matrix(matrix, nodes)
 
-    # Wait for network stabilization before high CPU load
-    print("Waiting for network stabilization...")
-    time.sleep(5)
 
     # Setup logging paths BEFORE starting learning
     run_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

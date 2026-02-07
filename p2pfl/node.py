@@ -421,6 +421,9 @@ class Node:
                 epochs_per_round=epochs,
             )
 
+            if hasattr(self.learner, "set_experiment_name"):
+                self.learner.set_experiment_name(experiment_name)
+
             # Run learning workflow
             self.learning_workflow.run(
                 rounds=rounds,

@@ -79,7 +79,7 @@ class TrainStage(Stage):
             logger.info(state.addr, "🏋️‍♀️ Training...")
             # Block any network thread from calling learner.set_model during backward()
             with state.model_update_lock:
-                learner.fit()
+                learner.fit(epochs=kwargs.get("epochs", 1), round=state.round)
             logger.info(state.addr, "🎓 Training done.")
 
             check_early_stop(state)
