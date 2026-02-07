@@ -345,3 +345,8 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
             period,
             create_connection,
         )
+
+    def save_logs(self) -> None:
+        """Save communication logs to file if configured."""
+        if self.comm_logger:
+            self.comm_logger.save()

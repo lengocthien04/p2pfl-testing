@@ -43,6 +43,7 @@ class CommLogger:
         self.packets_out = defaultdict(int)
         self.bytes_in = defaultdict(int)
         self.packets_in = defaultdict(int)
+        self.file_path: Optional[str] = None
 
     def start_round(self, round_idx: int) -> None:
         with self._lock:
@@ -118,3 +119,11 @@ class CommLogger:
             for r, s in items:
                 writer.writerow([r, s.packets_out, s.bytes_out, s.packets_in, s.bytes_in])
 
+    def set_file_path(self, path: str) -> None:
+        """Set the file path for automatic saving."""
+        self.file_path = path
+
+    def save(self) -> None:
+        """Save the logs to the configured file path."""
+        if self.file_path:
+            self.export_csv(self.file_path)

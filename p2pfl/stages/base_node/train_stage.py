@@ -176,6 +176,10 @@ class TrainStage(Stage):
             with state.model_update_lock:
                 learner.set_model(agg_model)
 
+            # Save communication logs after every round
+            if hasattr(communication_protocol, "save_logs"):
+                communication_protocol.save_logs()
+
             # Share that aggregation is done
             # communication_protocol.broadcast(communication_protocol.build_msg(ModelsReadyCommand.get_name(), [], round=state.round))
 

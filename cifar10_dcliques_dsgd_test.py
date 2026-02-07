@@ -1,8 +1,3 @@
-import os
-# MUST be set before importing torch / lightning / p2pfl lightning wrappers
-os.environ["CUDA_VISIBLE_DEVICES"] = ""          # force no GPU
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"         # optional: quiet TF logs
-# os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"      # optional: deterministic CPU
 
 import time
 import argparse
@@ -160,6 +155,15 @@ def main():
     print("Waiting for network stabilization...")
     time.sleep(5)
 
+    # Setup logging paths BEFORE starting learning
+    run_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    base_dir = os.path.join("logs", "comm", f"run_{run_id}")
+    os.makedirs(base_dir, exist_ok=True)
+    
+    for node in nodes:
+        fname = f"cifar10_dcliques_node_{node.addr.replace(':','_')}.csv"
+        node.comm_logger.set_file_path(os.path.join(base_dir, fname))
+
    # 7) Start learning
     nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs)
 
@@ -169,17 +173,10 @@ def main():
         if all(n.state.round is None for n in nodes):
             break
 
-    # 8) Export comm logs
-    run_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    base_dir = os.path.join("logs", "comm", f"run_{run_id}")
-    os.makedirs(base_dir, exist_ok=True)
-
+    # 8) Final save (optional, as it saves every round now)
     for node in nodes:
-        proto = getattr(node, "protocol", None)
-        comm_logger = getattr(proto, "comm_logger", None) if proto else None
-        if comm_logger is not None:
-            fname = f"cifar10_dcliques_node_{node.addr.replace(':','_')}.csv"
-            comm_logger.export_csv(os.path.join(base_dir, fname))
+        if node.comm_logger:
+            node.comm_logger.save()
 
     # 9) Stop nodes
     for node in nodes:
