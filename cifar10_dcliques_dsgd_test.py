@@ -155,8 +155,8 @@ def main():
 
     # 6) Connect according to D-Cliques matrix
     connect_from_matrix(matrix, nodes)
-
-
+    print("Waiting for network stabilization...")
+    time.sleep(5)
     # Setup logging paths BEFORE starting learning
     run_id = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     base_dir = os.path.join("logs", "comm", f"run_{run_id}")

@@ -60,7 +60,7 @@ class General:
 class Heartbeat:
     """Heartbeat settings."""
 
-    PERIOD: float = 30.0
+    PERIOD: float = 3.0
     """Period (seconds) to send heartbeats."""
 
     TIMEOUT: float = 150.0
