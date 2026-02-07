@@ -36,7 +36,7 @@ class General:
     SEED: int | None = None
     """Seed for random number generation."""
 
-    GRPC_TIMEOUT: float = 30.0
+    GRPC_TIMEOUT: float = 120.0
     """Maximum time (seconds) to wait for a gRPC request."""
 
 
@@ -63,8 +63,8 @@ class Heartbeat:
     PERIOD: float = 3.0
     """Period (seconds) to send heartbeats."""
 
-    TIMEOUT: float = 150.0
-    """Timeout (seconds) for a node to be considered dead."""
+    TIMEOUT: float = 300.0
+    """Timeout (seconds) for a node to be considered dead. MUST be longer than training time per round."""
 
     WAIT_CONVERGENCE: float = 30.0
     """Time (seconds) to wait for the heartbeats to converge before a learning round starts."""
@@ -135,7 +135,7 @@ class Training:
     """Timeout (seconds) for a node to wait for a vote."""
 
     AGGREGATION_TIMEOUT: int = 600
-    """Timeout (seconds) for a node to wait for other models. Timeout starts when the first model is added."""
+    """Timeout (seconds) for a node to wait for other models. MUST be longer than HEARTBEAT_TIMEOUT."""
 
     DEFAULT_BATCH_SIZE: int = 128
     """Default batch size for training."""

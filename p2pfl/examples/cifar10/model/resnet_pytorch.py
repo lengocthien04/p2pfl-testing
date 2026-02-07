@@ -72,8 +72,17 @@ class ResNetCIFAR10(L.LightningModule):
         """Training step of the model."""
         x = batch["image"].float()
         y = batch["label"]
-        loss = F.cross_entropy(self(x), y)
-        self.log("train_loss", loss, prog_bar=True)
+        logits = self(x)
+        loss = F.cross_entropy(logits, y)
+        
+        # Calculate training accuracy
+        out = torch.argmax(logits, dim=1)
+        train_acc = self.metric(out, y)
+        
+        # Log both loss and accuracy
+        self.log("train_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        self.log("train_accuracy", train_acc, prog_bar=True, on_step=False, on_epoch=True)
+        
         return loss
 
     def validation_step(self, batch: dict[str, torch.Tensor], batch_id: int) -> torch.Tensor:
@@ -87,9 +96,14 @@ class ResNetCIFAR10(L.LightningModule):
         logits = self(x)
         loss = F.cross_entropy(logits, y)
         out = torch.argmax(logits, dim=1)
-        metric = self.metric(out, y)
-        self.log("test_loss", loss, prog_bar=True)
-        self.log("test_metric", metric, prog_bar=True)
+        test_acc = self.metric(out, y)
+        
+        # Log with clearer names
+        self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        self.log("test_accuracy", test_acc, prog_bar=True, on_step=False, on_epoch=True)
+        # Keep test_metric for backward compatibility
+        self.log("test_metric", test_acc, prog_bar=True, on_step=False, on_epoch=True)
+        
         return loss
 
 

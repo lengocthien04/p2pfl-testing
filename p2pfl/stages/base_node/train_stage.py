@@ -77,9 +77,11 @@ class TrainStage(Stage):
 
             # Train
             logger.info(state.addr, "🏋️‍♀️ Training...")
+            # Set epochs for this round
+            learner.set_epochs(kwargs.get("epochs", 1))
             # Block any network thread from calling learner.set_model during backward()
             with state.model_update_lock:
-                learner.fit(epochs=kwargs.get("epochs", 1), round=state.round)
+                learner.fit()
             logger.info(state.addr, "🎓 Training done.")
 
             check_early_stop(state)
@@ -141,20 +143,23 @@ class TrainStage(Stage):
             # send to direct neighbors that are in train_set
             for n in state.train_set:
                 if n != state.addr:
-                    # Retry loop for robustness
-                    for attempt in range(3):
+                    # Retry loop with exponential backoff for robustness
+                    max_retries = 5
+                    for attempt in range(max_retries):
                         try:
                             communication_protocol.send(n, msg)
+                            logger.debug(state.addr, f"✅ Model sent to {n}")
                             break # Success
                         except Exception as e:
-                            if attempt < 2:
-                                logger.warning(state.addr, f"⚠️ Send to {n} failed (attempt {attempt+1}). Retrying... ({e})")
+                            if attempt < max_retries - 1:
+                                backoff = min(2 ** attempt * 0.5, 10)  # Exponential backoff, max 10s
+                                logger.warning(state.addr, f"⚠️ Send to {n} failed (attempt {attempt+1}/{max_retries}). Retrying in {backoff}s... ({e})")
                                 try:
                                     communication_protocol.connect(n)
-                                    time.sleep(0.5)
                                 except: pass
+                                time.sleep(backoff)
                             else:
-                                logger.error(state.addr, f"❌ Failed to send model to {n} after retries: {e}")
+                                logger.error(state.addr, f"❌ Failed to send model to {n} after {max_retries} retries: {e}")
             # TODO: print("Broadcast redundante")
             # communication_protocol.broadcast(
             #     communication_protocol.build_msg(
@@ -169,10 +174,12 @@ class TrainStage(Stage):
 
             # Set aggregated model
             # Debug log to see who we are waiting for
-            logger.info(state.addr, f"⏳ Waiting for aggregation. Expecting: {len(state.train_set)} nodes.")
+            missing = aggregator.get_missing_models()
+            logger.info(state.addr, f"⏳ Waiting for aggregation. Expecting {len(state.train_set)} nodes. Missing: {missing}")
             with torch.no_grad():
                 agg_model = aggregator.wait_and_get_aggregation()
             
+            logger.info(state.addr, f"✅ Aggregation complete for round {state.round}")
             with state.model_update_lock:
                 learner.set_model(agg_model)
 

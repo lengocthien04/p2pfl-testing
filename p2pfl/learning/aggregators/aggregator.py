@@ -19,6 +19,7 @@
 """Abstract aggregator."""
 
 import threading
+import time
 
 from p2pfl.learning.frameworks.p2pfl_model import P2PFLModel
 from p2pfl.management.logger import logger
@@ -229,22 +230,64 @@ class Aggregator(NodeComponent):
     #     return self.aggregate(self.__models)
     def wait_and_get_aggregation(self, timeout: int = Settings.training.AGGREGATION_TIMEOUT) -> P2PFLModel:
         """
-        Wait for aggregation to finish (infinite wait).
+        Wait for aggregation to finish with proper timeout.
+        
+        In D-SGD, we MUST receive all neighbor models for consensus.
+        If timeout occurs, it indicates a network/synchronization issue.
+        
+        Args:
+            timeout: Maximum time to wait for all models (seconds).
+            
+        Returns:
+            Aggregated model when all expected models are received.
+            
+        Raises:
+            NoModelsToAggregateError: If timeout occurs without receiving all models.
         """
-        while True:
-            # Wait forever until somebody signals progress
-            self._finish_aggregation_event.wait()   # <-- no timeout
-
+        start_time = time.time()
+        remaining_timeout = timeout
+        
+        while remaining_timeout > 0:
+            # Wait with timeout
+            event_set = self._finish_aggregation_event.wait(timeout=remaining_timeout)
+            
             missing_models = self.get_missing_models()
-
-            # If still missing, keep waiting
-            if len(missing_models) > 0:
-                # important: clear so we can wait for the next signal
+            
+            # If all models received, aggregate and return
+            if len(missing_models) == 0:
+                logger.info(self.addr, "🧠 Aggregating models (all received).")
+                return self.aggregate(self.__models)
+            
+            # If event was set but models still missing, clear and continue waiting
+            if event_set:
+                logger.debug(self.addr, f"⏳ Event set but still missing {len(missing_models)} models: {missing_models}")
                 self._finish_aggregation_event.clear()
-                continue
-
-            logger.info(self.addr, "🧠 Aggregating models.")
-            return self.aggregate(self.__models)
+                
+            # Update remaining timeout
+            elapsed = time.time() - start_time
+            remaining_timeout = timeout - elapsed
+        
+        # Timeout reached - this is an ERROR in D-SGD
+        missing_models = self.get_missing_models()
+        logger.error(
+            self.addr, 
+            f"❌ Aggregation timeout after {timeout}s. Missing {len(missing_models)} models: {missing_models}"
+        )
+        logger.error(
+            self.addr,
+            f"   Expected train_set: {self.__train_set}"
+        )
+        logger.error(
+            self.addr,
+            f"   Received models from: {self.get_aggregated_models()}"
+        )
+        
+        # For D-SGD, we cannot proceed without all models
+        # Partial aggregation would break consensus
+        raise NoModelsToAggregateError(
+            f"({self.addr}) D-SGD requires all neighbor models. "
+            f"Missing {len(missing_models)} models after {timeout}s timeout: {missing_models}"
+        )
 
 
     def get_missing_models(self) -> set:
