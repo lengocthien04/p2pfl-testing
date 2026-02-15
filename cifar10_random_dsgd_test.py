@@ -92,7 +92,7 @@ def main():
     TopologyFactory.connect_nodes(matrix, nodes)
 
     # Start learning
-    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs)
+    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs, t trainset_size=args.n)
 
     # Wait until all nodes finish
     while True:
