@@ -112,10 +112,18 @@ class SuperActorPool(ActorPool):
             # Initialize ActorPool
             num_actors = Settings.training.RAY_ACTOR_POOL_SIZE if amount_actors is None else amount_actors
             
-            # Limit to 10 actors maximum
-            if num_actors > 10:
-                num_actors = 10
-
+            # Limit actors based on GPU availability
+            # Ray requires minimum 0.1 GPU per actor
+            cluster_resources = ray.cluster_resources()
+            num_gpus = cluster_resources.get("GPU", 0)
+            
+            if num_gpus > 0:
+                # Maximum actors we can create with 0.1 GPU each
+                max_actors_with_gpu = int(num_gpus / 0.1)
+                if num_actors > max_actors_with_gpu:
+                    logger.info("ActorPool", f"Requested {num_actors} actors but only {max_actors_with_gpu} can fit with 0.1 GPU each. Limiting to {max_actors_with_gpu}.")
+                    num_actors = max_actors_with_gpu
+            
             # Calculate GPU resources per actor
             self.gpu_per_actor = self._calculate_gpu_per_actor(num_actors)
 

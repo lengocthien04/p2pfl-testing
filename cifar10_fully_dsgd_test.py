@@ -8,6 +8,7 @@ from p2pfl.learning.dataset.partition_strategies import DirichletPartitionStrate
 from p2pfl.node import Node
 
 from p2pfl.utils.topologies import TopologyFactory
+from p2pfl.learning.aggregators.d_sgd import DSGD
 
 # ---- import the ResNet build function you pasted ----
 # Adjust this import path to match where the file actually is in YOUR repo.
@@ -22,9 +23,13 @@ def main():
     ap.add_argument("--rounds", type=int, default=2)
     ap.add_argument("--epochs", type=int, default=1)
     ap.add_argument("--alpha", type=float, default=0.1)
-    ap.add_argument("--trainset-size", type=int, default=4)
     ap.add_argument("--experiment-name", type=str, default="cifar10-resnet-full")
     args = ap.parse_args()
+
+    # CRITICAL: Configure Ray actor pool BEFORE any Ray operations
+    from p2pfl.settings import Settings
+    Settings.training.RAY_ACTOR_POOL_SIZE = min(args.n, 10)
+    print(f"Ray actor pool size set to {Settings.training.RAY_ACTOR_POOL_SIZE}")
 
     # ---- load CIFAR10 dataset ----
     # [Unverified] dataset id string. If this fails, find the correct one in your repo.
@@ -48,7 +53,7 @@ def main():
             model=model_build_fn(),   # ResNet CIFAR10 LightningModel wrapper
             data=datashards[i],
             addr=f"127.0.0.1:{args.base_port + i}",
-            # aggregator=YourDSGD()  # <- only if you already implemented DSGD as an Aggregator subclass
+            aggregator=DSGD(),  # D-SGD aggregator
         )
         node.start()
         nodes.append(node)
@@ -61,7 +66,7 @@ def main():
     nodes[0].set_start_learning(
         rounds=args.rounds,
         epochs=args.epochs,
-        trainset_size=args.trainset_size,
+        trainset_size=args.n,  # Include all nodes in training
         experiment_name=args.experiment_name,
     )
 
@@ -75,7 +80,7 @@ def main():
     os.makedirs(base_dir, exist_ok=True)
 
     for node in nodes:
-        proto = getattr(node, "protocol", None)
+        proto = getattr(node, "_communication_protocol", None)
         comm_logger = getattr(proto, "comm_logger", None) if proto else None
         if comm_logger is not None:
             fname = f"cifar10_fully_node_{node.addr.replace(':','_')}.csv"

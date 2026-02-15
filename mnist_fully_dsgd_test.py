@@ -27,8 +27,8 @@ def main():
 
     # CRITICAL: Configure Ray actor pool BEFORE any Ray operations
     from p2pfl.settings import Settings
-    Settings.training.RAY_ACTOR_POOL_SIZE = args.n
-    print(f"Ray actor pool size set to {args.n}")
+    Settings.training.RAY_ACTOR_POOL_SIZE = min(args.n, 10)
+    print(f"Ray actor pool size set to {Settings.training.RAY_ACTOR_POOL_SIZE}")
     
     # Configure gossip settings for large fully connected networks
     Settings.gossip.MODELS_PERIOD = 0.5  # Gossip models more frequently (default: 1)

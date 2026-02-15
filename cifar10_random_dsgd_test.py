@@ -36,10 +36,16 @@ def main():
 
     # Load and partition CIFAR-10 dataset
     dataset = P2PFLDataset.from_huggingface("p2pfl/CIFAR10")
-    dataset.batch_size = 20
+    dataset.set_batch_size(20)
     
-    partitioner = DirichletPartitionStrategy(alpha=args.alpha, seed=args.seed)
-    datashards = partitioner.create_partitions(dataset, args.n)
+    strategy = DirichletPartitionStrategy()
+    datashards = dataset.generate_partitions(
+        num_partitions=args.n,
+        strategy=strategy,
+        seed=args.seed,
+        label_tag="label",
+        alpha=args.alpha,
+    )
 
     print(f"\n=== CIFAR-10 Dataset ===")
     print(f"Nodes: {args.n}")
