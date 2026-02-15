@@ -12,6 +12,7 @@ from p2pfl.examples.mnist.model.mlp_pytorch import MLP
 from p2pfl.node import Node
 
 from p2pfl.utils.topologies import TopologyFactory
+from p2pfl.learning.aggregators.d_sgd import DSGD
 
 
 def main():
@@ -23,6 +24,14 @@ def main():
     ap.add_argument("--alpha", type=float, default=0.1)
     ap.add_argument("--seed", type=int, default=666)
     args = ap.parse_args()
+
+    # Configure settings to prevent heartbeat timeouts during connection
+    from p2pfl.settings import Settings
+    Settings.heartbeat.TIMEOUT = 300.0  # 5 minutes - prevent removal during connection/training
+    Settings.general.GRPC_TIMEOUT = 120.0  # 2 minutes for large model transmission
+    Settings.training.AGGREGATION_TIMEOUT = 600  # 10 minutes
+    print(f"⚙️  Heartbeat timeout: {Settings.heartbeat.TIMEOUT}s")
+    print(f"⚙️  GRPC timeout: {Settings.general.GRPC_TIMEOUT}s")
 
     # 1) Dataset + Dirichlet partition
     dataset = P2PFLDataset.from_huggingface("p2pfl/MNIST")
@@ -45,11 +54,7 @@ def main():
             model=LightningModel(MLP(lr_rate=0.1)),
             data=datashards[i],
             addr=f"127.0.0.1:{args.base_port + i}",
-            # If you implemented DSGD as an Aggregator:
-            # aggregator=DSGD(),
-            #
-            # OR if p2pfl expects it as "learner/strategy/protocol",
-            # keep default here and change inside your workflow config.
+            aggregator=DSGD(),
         )
         node.start()
         nodes.append(node)
@@ -71,11 +76,15 @@ def main():
     os.makedirs(base_dir, exist_ok=True)
 
     for node in nodes:
-        proto = getattr(node, "protocol", None)
+        proto = getattr(node, "_communication_protocol", None)
         comm_logger = getattr(proto, "comm_logger", None) if proto else None
-        if comm_logger is not None:
-            fname = f"mnist_fully_node_{node.addr.replace(':','_')}.csv"
-            comm_logger.export_csv(os.path.join(base_dir, fname))
+        if comm_logger is None:
+            print(f"[WARN] No comm_logger for {node.addr}")
+            continue
+        fname = f"mnist_fully_node_{node.addr.replace(':','_')}.csv"
+        comm_logger.export_csv(os.path.join(base_dir, fname))
+
+    print(f"\n✅ Communication logs saved to: {base_dir}")
 
 
     # 6) Stop nodes
