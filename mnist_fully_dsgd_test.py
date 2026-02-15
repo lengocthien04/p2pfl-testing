@@ -16,8 +16,9 @@ from p2pfl.learning.aggregators.d_sgd import DSGD
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--n", type=int, default=10)
+    ap = argparse.ArgumentParser(description="MNIST Fully Connected D-SGD Test")
+    ap.add_argument("--n", type=int, default=10, 
+                    help="Number of nodes (WARNING: >10 nodes may cause race conditions)")
     ap.add_argument("--base-port", type=int, default=6666)
     ap.add_argument("--rounds", type=int, default=5)
     ap.add_argument("--epochs", type=int, default=1)
@@ -62,6 +63,10 @@ def main():
     # 3) Fully-connected topology
     matrix = TopologyFactory.generate_matrix("full", args.n)
     TopologyFactory.connect_nodes(matrix, nodes)
+    
+    # Wait for network to stabilize before starting learning
+    print("⏳ Waiting for network stabilization (10 seconds)...")
+    time.sleep(10)
 
     # 4) Start decentralized learning from node 0
     # For fully connected, all nodes should participate in training
