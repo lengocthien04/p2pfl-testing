@@ -72,6 +72,8 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
 
         # (addr) Super
         CommunicationProtocol.__init__(self)
+        
+        # Initialize communication logger (will be set with proper addr when protocol starts)
         self.comm_logger: CommLogger | None = None
 
         # Neighbors
@@ -114,6 +116,10 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
 
     def start(self) -> None:
         """Start the GRPC communication protocol."""
+        # Initialize communication logger with the node's address
+        if self.comm_logger is None and self.addr:
+            self.comm_logger = CommLogger(self.addr)
+        
         self._server.start()
         self._heartbeater.start()
         self._gossiper.start()
