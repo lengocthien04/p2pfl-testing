@@ -30,6 +30,10 @@ def main():
     Settings.training.RAY_ACTOR_POOL_SIZE = min(args.n, 10)
     print(f"Ray actor pool size set to {Settings.training.RAY_ACTOR_POOL_SIZE}")
     
+    # Enable neighbor-only aggregation for TRUE D-SGD
+    Settings.training.NEIGHBOR_ONLY_AGGREGATION = True
+    print(f"✅ Neighbor-only aggregation ENABLED (true D-SGD)")
+    
     # Configure gossip settings for large fully connected networks
     Settings.gossip.MODELS_PERIOD = 0.5  # Gossip models more frequently (default: 1)
     Settings.gossip.MODELS_PER_ROUND = args.n  # Allow more models per round

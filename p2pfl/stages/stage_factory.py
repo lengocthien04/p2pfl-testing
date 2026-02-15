@@ -49,6 +49,10 @@ class StageFactory:
             from p2pfl.stages.base_node.train_stage import TrainStage
 
             return TrainStage
+        elif stage_name == "TrainStageNeighborOnly":
+            from p2pfl.stages.base_node.train_stage_neighbor_only import TrainStageNeighborOnly
+
+            return TrainStageNeighborOnly
         elif stage_name == "VoteTrainSetStage":
             from p2pfl.stages.base_node.vote_train_set_stage import VoteTrainSetStage
 

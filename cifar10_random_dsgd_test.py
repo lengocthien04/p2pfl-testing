@@ -34,15 +34,24 @@ def main():
     Settings.training.RAY_ACTOR_POOL_SIZE = min(args.n, 10)
     print(f"Ray actor pool size set to {Settings.training.RAY_ACTOR_POOL_SIZE}")
     
+    # CRITICAL: Enable neighbor-only aggregation for true D-SGD
+    Settings.training.NEIGHBOR_ONLY_AGGREGATION = True
+    print(f"✅ Neighbor-only aggregation ENABLED (true D-SGD)")
+    
     # Configure timeouts for large networks
     Settings.heartbeat.TIMEOUT = 300.0  # 5 minutes for heartbeat
     Settings.general.GRPC_TIMEOUT = 60.0  # 1 minute for GRPC
-    Settings.training.AGGREGATION_TIMEOUT = 600  # 10 minutes for aggregation
+    Settings.training.AGGREGATION_TIMEOUT = 1800  # 30 minutes - allow time for all nodes to train
+    
+    # Increase gossip exit threshold for sparse topology
+    # Random topology needs more time for models to propagate through multiple hops
+    Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS = 100  # Much higher to prevent early exit
     
     print(f"⚙️  Configured timeouts:")
     print(f"   Heartbeat timeout: {Settings.heartbeat.TIMEOUT}s")
     print(f"   GRPC timeout: {Settings.general.GRPC_TIMEOUT}s")
     print(f"   Aggregation timeout: {Settings.training.AGGREGATION_TIMEOUT}s")
+    print(f"   Gossip exit threshold: {Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS} equal rounds")
 
     # Load and partition CIFAR-10 dataset
     dataset = P2PFLDataset.from_huggingface("p2pfl/CIFAR10")
@@ -91,8 +100,10 @@ def main():
     # Connect nodes according to topology
     TopologyFactory.connect_nodes(matrix, nodes)
 
-    # Start learning
-    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs, t trainset_size=args.n)
+    # Start learning with all nodes in trainset
+    # Gossip mechanism creates temporary connections to reach all trainset nodes
+    print(f"\n⚙️  Starting learning with trainset_size={args.n} (all nodes)")
+    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs, trainset_size=args.n)
 
     # Wait until all nodes finish
     while True:

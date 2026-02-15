@@ -115,6 +115,8 @@ class Training:
     DEFAULT_BATCH_SIZE: int = 128
     """Default batch size for training."""
     RAY_ACTOR_POOL_SIZE: int = 4
+    NEIGHBOR_ONLY_AGGREGATION: bool = False
+    """If True, use TrainStageNeighborOnly for true D-SGD (aggregate only from direct neighbors)."""
 
 
 ###################

@@ -115,6 +115,10 @@ def main():
     Settings.general.GRPC_TIMEOUT = 120.0  # Allow large model transmission
     Settings.training.AGGREGATION_TIMEOUT = 600  # Wait longer than heartbeat timeout
     
+    # Enable neighbor-only aggregation for TRUE D-SGD
+    Settings.training.NEIGHBOR_ONLY_AGGREGATION = True
+    print(f"✅ Neighbor-only aggregation ENABLED (true D-SGD)")
+    
     print(f"⚙️  Settings: HEARTBEAT_TIMEOUT={Settings.heartbeat.TIMEOUT}s, "
           f"GRPC_TIMEOUT={Settings.general.GRPC_TIMEOUT}s, "
           f"AGGREGATION_TIMEOUT={Settings.training.AGGREGATION_TIMEOUT}s")

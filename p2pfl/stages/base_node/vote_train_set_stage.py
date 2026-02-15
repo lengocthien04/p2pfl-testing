@@ -67,7 +67,12 @@ class VoteTrainSetStage(Stage):
 
             # Next stage
             if state.addr in state.train_set:
-                return StageFactory.get_stage("TrainStage")
+                # Use neighbor-only aggregation for true D-SGD if configured
+                from p2pfl.settings import Settings
+                if Settings.training.NEIGHBOR_ONLY_AGGREGATION:
+                    return StageFactory.get_stage("TrainStageNeighborOnly")
+                else:
+                    return StageFactory.get_stage("TrainStage")
             else:
                 logger.debug(state.addr, "Node not in train set. Proceeding to WaitAggregatedModelsStage.")
                 return StageFactory.get_stage("WaitAggregatedModelsStage")

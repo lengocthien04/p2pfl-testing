@@ -109,6 +109,11 @@ def main():
     # Configure Ray actor pool
     from p2pfl.settings import Settings
     Settings.training.RAY_ACTOR_POOL_SIZE = min(args.n, 10)
+    
+    # Enable neighbor-only aggregation for TRUE D-SGD
+    Settings.training.NEIGHBOR_ONLY_AGGREGATION = True
+    print(f"✅ Neighbor-only aggregation ENABLED (true D-SGD)")
+    
     Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS = 50
     print(f"Ray actor pool size set to {Settings.training.RAY_ACTOR_POOL_SIZE}")
 

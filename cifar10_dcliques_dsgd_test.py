@@ -100,6 +100,15 @@ def main():
 
     # Reduce thread contention: prevent 10 nodes from spawning 10x CPU threads each
     os.environ["OMP_NUM_THREADS"] = "1"
+    
+    # Configure settings
+    from p2pfl.settings import Settings
+    Settings.training.RAY_ACTOR_POOL_SIZE = min(args.n, 10)
+    
+    # Enable neighbor-only aggregation for TRUE D-SGD
+    Settings.training.NEIGHBOR_ONLY_AGGREGATION = True
+    print(f"✅ Neighbor-only aggregation ENABLED (true D-SGD)")
+    print(f"Ray actor pool size set to {Settings.training.RAY_ACTOR_POOL_SIZE}")
 
     # 1) Load dataset + partition
     dataset = P2PFLDataset.from_huggingface("p2pfl/CIFAR10")

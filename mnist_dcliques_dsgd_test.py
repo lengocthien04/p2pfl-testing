@@ -102,11 +102,16 @@ def main():
     
     # CRITICAL: Configure Ray actor pool to match number of nodes
     from p2pfl.settings import Settings
-    Settings.training.RAY_ACTOR_POOL_SIZE = args.n
+    Settings.training.RAY_ACTOR_POOL_SIZE = min(args.n, 10)
+    
+    # Enable neighbor-only aggregation for TRUE D-SGD
+    Settings.training.NEIGHBOR_ONLY_AGGREGATION = True
+    print(f"✅ Neighbor-only aggregation ENABLED (true D-SGD)")
+    
     # Increase gossip exit threshold for D-Cliques topology
     # D-Cliques needs more hops for messages to propagate
     Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS = 50
-    print(f"Ray actor pool size set to {args.n}")
+    print(f"Ray actor pool size set to {min(args.n, 10)}")
     print(f"Gossip exit threshold set to 50 rounds")
 
     # 1) Load dataset + partition
