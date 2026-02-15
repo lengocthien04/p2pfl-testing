@@ -55,13 +55,17 @@ class TrainStageNeighborOnly(Stage):
         try:
             check_early_stop(state)
 
-            # CRITICAL CHANGE: Aggregate only from direct neighbors + self
+            # CRITICAL CHANGE: Aggregate only from direct neighbors + self WHO ARE IN TRAINSET
             # This is true D-SGD behavior for sparse topologies
             direct_neighbors_dict = communication_protocol.get_neighbors(only_direct=True)
             direct_neighbors = list(direct_neighbors_dict.keys())  # Convert dict to list of addresses
-            nodes_to_aggregate = [state.addr] + direct_neighbors
             
-            logger.info(state.addr, f"🎯 Aggregating from {len(nodes_to_aggregate)} direct neighbors (including self)")
+            # CRITICAL FIX: Only aggregate from neighbors that are in trainset
+            neighbors_in_trainset = [n for n in direct_neighbors if n in state.train_set]
+            nodes_to_aggregate = [state.addr] + neighbors_in_trainset
+            
+            logger.info(state.addr, f"🎯 Aggregating from {len(nodes_to_aggregate)} neighbors in trainset (including self)")
+            logger.info(state.addr, f"   Direct neighbors: {len(direct_neighbors)}, In trainset: {len(neighbors_in_trainset)}")
             aggregator.set_nodes_to_aggregate(nodes_to_aggregate)
 
             check_early_stop(state)
@@ -207,8 +211,9 @@ class TrainStageNeighborOnly(Stage):
 
     @staticmethod
     def __get_remaining_nodes(node: str, state: NodeState, direct_neighbors: list[str]) -> set[str]:
-        """Get remaining nodes that this node needs, limited to direct neighbors."""
-        # Node needs models from its direct neighbors + itself
-        needed = set([node] + direct_neighbors)
+        """Get remaining nodes that this node needs, limited to direct neighbors IN TRAINSET."""
+        # CRITICAL FIX: Node only needs models from neighbors that are in trainset
+        neighbors_in_trainset = [n for n in direct_neighbors if n in state.train_set]
+        needed = set([node] + neighbors_in_trainset)
         already_has = set(TrainStageNeighborOnly.__get_aggregated_models(node, state))
         return needed - already_has

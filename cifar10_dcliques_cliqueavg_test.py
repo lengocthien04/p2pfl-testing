@@ -114,8 +114,20 @@ def main():
     Settings.training.NEIGHBOR_ONLY_AGGREGATION = True
     print(f"✅ Neighbor-only aggregation ENABLED (true D-SGD)")
     
-    Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS = 50
+    # Configure timeouts for large networks
+    Settings.heartbeat.TIMEOUT = 300.0  # 5 minutes for heartbeat
+    Settings.general.GRPC_TIMEOUT = 60.0  # 1 minute for GRPC
+    Settings.training.AGGREGATION_TIMEOUT = 1800  # 30 minutes
+    
+    # Increase gossip exit threshold for D-Cliques topology
+    Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS = 100
+    
     print(f"Ray actor pool size set to {Settings.training.RAY_ACTOR_POOL_SIZE}")
+    print(f"⚙️  Configured timeouts:")
+    print(f"   Heartbeat timeout: {Settings.heartbeat.TIMEOUT}s")
+    print(f"   GRPC timeout: {Settings.general.GRPC_TIMEOUT}s")
+    print(f"   Aggregation timeout: {Settings.training.AGGREGATION_TIMEOUT}s")
+    print(f"   Gossip exit threshold: {Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS} equal rounds")
 
     # Load dataset + partition
     dataset = P2PFLDataset.from_huggingface("p2pfl/CIFAR10")
@@ -191,8 +203,11 @@ def main():
     # Connect according to D-Cliques matrix
     connect_from_matrix(matrix, nodes)
 
-    # Start learning
-    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs)
+    # Start learning with small trainset (neighbor-only aggregation)
+    trainset_size = min(10, args.n)  # Max 10 nodes in trainset
+    print(f"\n⚙️  Starting learning with trainset_size={trainset_size}")
+    print(f"   (Neighbor-only aggregation: nodes aggregate only from direct neighbors)")
+    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs, trainset_size=trainset_size)
 
     # Wait until all nodes finish
     while True:
