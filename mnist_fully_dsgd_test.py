@@ -30,6 +30,12 @@ def main():
     Settings.training.RAY_ACTOR_POOL_SIZE = args.n
     print(f"Ray actor pool size set to {args.n}")
     
+    # Configure gossip settings for large fully connected networks
+    Settings.gossip.MODELS_PERIOD = 0.5  # Gossip models more frequently (default: 1)
+    Settings.gossip.MODELS_PER_ROUND = args.n  # Allow more models per round
+    Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS = 5  # Exit gossip faster when stable
+    Settings.gossip.MESSAGES_PER_PERIOD = 9999999  # No limit on messages
+    
     # Configure settings to handle large fully connected networks
     # Scale timeouts based on number of nodes
     base_timeout = 300.0
@@ -44,6 +50,8 @@ def main():
     print(f"   Heartbeat timeout: {Settings.heartbeat.TIMEOUT}s")
     print(f"   GRPC timeout: {Settings.general.GRPC_TIMEOUT}s")
     print(f"   Aggregation timeout: {Settings.training.AGGREGATION_TIMEOUT}s")
+    print(f"   Gossip models period: {Settings.gossip.MODELS_PERIOD}s")
+    print(f"   Models per round: {Settings.gossip.MODELS_PER_ROUND}")
 
 
 
