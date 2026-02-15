@@ -17,8 +17,7 @@ from p2pfl.learning.aggregators.d_sgd import DSGD
 
 def main():
     ap = argparse.ArgumentParser(description="MNIST Fully Connected D-SGD Test")
-    ap.add_argument("--n", type=int, default=10, 
-                    help="Number of nodes (WARNING: >10 nodes may cause race conditions)")
+    ap.add_argument("--n", type=int, default=10, help="Number of nodes")
     ap.add_argument("--base-port", type=int, default=6666)
     ap.add_argument("--rounds", type=int, default=5)
     ap.add_argument("--epochs", type=int, default=1)
@@ -26,13 +25,27 @@ def main():
     ap.add_argument("--seed", type=int, default=666)
     args = ap.parse_args()
 
-    # Configure settings to prevent heartbeat timeouts during connection
+    # CRITICAL: Configure Ray actor pool BEFORE any Ray operations
     from p2pfl.settings import Settings
-    Settings.heartbeat.TIMEOUT = 300.0  # 5 minutes - prevent removal during connection/training
-    Settings.general.GRPC_TIMEOUT = 120.0  # 2 minutes for large model transmission
-    Settings.training.AGGREGATION_TIMEOUT = 600  # 10 minutes
-    print(f"⚙️  Heartbeat timeout: {Settings.heartbeat.TIMEOUT}s")
-    print(f"⚙️  GRPC timeout: {Settings.general.GRPC_TIMEOUT}s")
+    Settings.training.RAY_ACTOR_POOL_SIZE = args.n
+    print(f"Ray actor pool size set to {args.n}")
+    
+    # Configure settings to handle large fully connected networks
+    # Scale timeouts based on number of nodes
+    base_timeout = 300.0
+    grpc_timeout = 300.0 + (args.n * 10)  # Add 10s per node
+    aggregation_timeout = 1200 + (args.n * 30)  # Add 30s per node
+    
+    Settings.heartbeat.TIMEOUT = base_timeout
+    Settings.general.GRPC_TIMEOUT = grpc_timeout
+    Settings.training.AGGREGATION_TIMEOUT = aggregation_timeout
+    
+    print(f"⚙️  Configured for {args.n} nodes:")
+    print(f"   Heartbeat timeout: {Settings.heartbeat.TIMEOUT}s")
+    print(f"   GRPC timeout: {Settings.general.GRPC_TIMEOUT}s")
+    print(f"   Aggregation timeout: {Settings.training.AGGREGATION_TIMEOUT}s")
+
+
 
     # 1) Dataset + Dirichlet partition
     dataset = P2PFLDataset.from_huggingface("p2pfl/MNIST")
