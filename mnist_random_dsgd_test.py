@@ -32,6 +32,16 @@ def main():
     from p2pfl.settings import Settings
     Settings.training.RAY_ACTOR_POOL_SIZE = min(args.n, 10)
     print(f"Ray actor pool size set to {Settings.training.RAY_ACTOR_POOL_SIZE}")
+    
+    # Configure timeouts for large networks
+    Settings.heartbeat.TIMEOUT = 300.0  # 5 minutes for heartbeat
+    Settings.general.GRPC_TIMEOUT = 60.0  # 1 minute for GRPC
+    Settings.training.AGGREGATION_TIMEOUT = 600  # 10 minutes for aggregation
+    
+    print(f"⚙️  Configured timeouts:")
+    print(f"   Heartbeat timeout: {Settings.heartbeat.TIMEOUT}s")
+    print(f"   GRPC timeout: {Settings.general.GRPC_TIMEOUT}s")
+    print(f"   Aggregation timeout: {Settings.training.AGGREGATION_TIMEOUT}s")
 
     # Load and partition MNIST dataset
     dataset = P2PFLDataset.from_huggingface("p2pfl/MNIST")
