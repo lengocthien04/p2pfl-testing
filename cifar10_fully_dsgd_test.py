@@ -67,10 +67,14 @@ def main():
     TopologyFactory.connect_nodes(matrix, nodes)
 
     # ---- start learning from node 0 ----
+    # Small trainset with neighbor-only aggregation
+    trainset_size = min(10, args.n)  # Max 10 nodes in trainset
+    print(f"\n⚙️  Starting learning with trainset_size={trainset_size}")
+    print(f"   (Neighbor-only aggregation: nodes aggregate only from direct neighbors)")
     nodes[0].set_start_learning(
         rounds=args.rounds,
         epochs=args.epochs,
-        trainset_size=args.n,  # Include all nodes in training
+        trainset_size=trainset_size,
         experiment_name=args.experiment_name,
     )
 

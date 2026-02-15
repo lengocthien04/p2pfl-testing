@@ -99,10 +99,12 @@ def main():
     # Connect nodes according to topology
     TopologyFactory.connect_nodes(matrix, nodes)
 
-    # Start learning with all nodes in trainset
-    # Gossip mechanism creates temporary connections to reach all trainset nodes
-    print(f"\n⚙️  Starting learning with trainset_size={args.n} (all nodes)")
-    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs, trainset_size=args.n)
+    # Start learning with small trainset (neighbor-only aggregation)
+    # Only a subset of nodes train, but they aggregate only from direct neighbors
+    trainset_size = min(10, args.n)  # Max 10 nodes in trainset
+    print(f"\n⚙️  Starting learning with trainset_size={trainset_size}")
+    print(f"   (Neighbor-only aggregation: nodes aggregate only from direct neighbors)")
+    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs, trainset_size=trainset_size)
 
     # Wait until all nodes finish
     while True:

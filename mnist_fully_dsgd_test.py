@@ -94,8 +94,11 @@ def main():
     time.sleep(10)
 
     # 4) Start decentralized learning from node 0
-    # For fully connected, all nodes should participate in training
-    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs, trainset_size=args.n)
+    # Small trainset with neighbor-only aggregation
+    trainset_size = min(10, args.n)  # Max 10 nodes in trainset
+    print(f"\n⚙️  Starting learning with trainset_size={trainset_size}")
+    print(f"   (Neighbor-only aggregation: nodes aggregate only from direct neighbors)")
+    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs, trainset_size=trainset_size)
 
     # 5) Wait until finished
     while True:

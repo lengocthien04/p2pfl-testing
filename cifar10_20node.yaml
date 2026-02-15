@@ -1,0 +1,77 @@
+description: "CIFAR-10 experiment with 20 nodes using star topology"
+
+network:
+  package: "p2pfl.communication.protocols.protobuff.memory"
+  protocol: "MemoryCommunicationProtocol"
+  nodes: 20
+  topology: "star"
+
+experiment:
+  name: "cifar10_20nodes"
+  rounds: 130
+  epochs: 1
+  trainset_size: 4
+  seed: 666
+  wait_timeout: 300
+
+  dataset:
+    source: "huggingface"
+    name: "p2pfl/CIFAR10"
+    batch_size: 256
+    transforms:
+      package: "p2pfl.examples.cifar10.transforms"
+      function: "get_cifar10_transforms"
+      params: {}
+    partitioning:
+      package: "p2pfl.learning.dataset.partition_strategies"
+      strategy: "RandomIIDPartitionStrategy"
+      reduced_dataset: false
+      reduction_factor: 10
+      params: {}
+
+  model:
+    package: "p2pfl.examples.cifar10.model.resnet_pytorch"
+    model_build_fn: "model_build_fn"
+    params: {}
+
+  aggregator:
+    package: "p2pfl.learning.aggregators.fedavg"
+    aggregator: "FedAvg"
+    params: {}
+
+settings:
+  general:
+    log_level: "INFO"
+    grpc_timeout: 2
+    disable_ray: False
+    resource_monitor_period: 1
+
+  SSL:
+    use_ssl: false
+    CA_CRT: None
+    SERVER_CRT: None
+    CLIENT_CRT: None
+    SERVER_KEY: None
+    CLIENT_KEY: None
+  heartbeat:
+    period: 10
+    timeout: 60
+    wait_convergence: 4
+    exclude_beat_logs: true
+  gossip:
+    period: 1
+    ttl: 20
+    messages_per_period: 200
+    amount_last_messages_saved: 1000
+    models_period: 1
+    models_per_round: 4
+    exit_on_x_equal_rounds: 50
+  training:
+    vote_timeout: 60
+    aggregation_timeout: 300
+    ray_actor_pool_size: 1
+
+profiling:
+  enabled: false
+  measure_time: true
+  output_dir: "profile/cifar10_20nodes"
