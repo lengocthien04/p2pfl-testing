@@ -153,21 +153,22 @@ class TrainStageNeighborOnly(Stage):
             return state.round is None
 
         def get_candidates_fn() -> list[str]:
-            # CRITICAL FIX: Only help direct neighbors that are in trainset AND still need models
-            # Don't exit early - keep helping until all neighbors have what they need
+            # Help direct neighbors that are in trainset AND still need models
             candidates = []
             for n in nodes_to_help:
                 remaining = TrainStageNeighborOnly.__get_remaining_nodes(n, state, direct_neighbors)
                 if len(remaining) > 0:
                     candidates.append(n)
             
-            # If no candidates but we haven't received all our own models yet, keep gossip alive
-            # This prevents early exit when neighbors finished but we're still waiting
+            # CRITICAL FIX: Don't exit gossip until WE have all our models
+            # If no neighbors need help but we're still waiting, return a dummy to keep gossip alive
             if len(candidates) == 0:
-                my_remaining = aggregator.get_missing_models()
-                if len(my_remaining) > 0:
-                    # Return self to keep gossip thread alive
-                    return [state.addr] if state.addr in state.train_set else []
+                my_missing = aggregator.get_missing_models()
+                if len(my_missing) > 0:
+                    logger.debug(state.addr, f"⏳ No neighbors to help, but waiting for {len(my_missing)} models. Keeping gossip alive.")
+                    # Return a non-empty list to prevent gossip exit
+                    # The model_fn will handle this gracefully by returning None
+                    return ["__KEEP_ALIVE__"]
             
             return candidates
 
@@ -184,6 +185,11 @@ class TrainStageNeighborOnly(Stage):
         def model_fn(node: str) -> tuple[Any, str, int, list[str]]:
             if state.round is None:
                 raise Exception("Round not initialized.")
+            
+            # Handle keep-alive dummy
+            if node == "__KEEP_ALIVE__":
+                return (None, PartialModelCommand.get_name(), state.round, [])
+            
             try:
                 model = aggregator.get_model(TrainStageNeighborOnly.__get_aggregated_models(node, state))
             except NoModelsToAggregateError:
