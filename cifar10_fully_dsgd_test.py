@@ -29,6 +29,7 @@ def main():
     # ---- load CIFAR10 dataset ----
     # [Unverified] dataset id string. If this fails, find the correct one in your repo.
     dataset = P2PFLDataset.from_huggingface("p2pfl/CIFAR10")
+    dataset.batch_size = 20
 
     # ---- partition (Dirichlet alpha) ----
     strategy = DirichletPartitionStrategy()

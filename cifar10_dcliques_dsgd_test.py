@@ -103,6 +103,7 @@ def main():
 
     # 1) Load dataset + partition
     dataset = P2PFLDataset.from_huggingface("p2pfl/CIFAR10")
+    dataset.batch_size = 20
     strategy = DirichletPartitionStrategy()
 
     datashards = dataset.generate_partitions(
@@ -144,7 +145,7 @@ def main():
     nodes: list[Node] = []
     for i in range(args.n):
         node = Node(
-            model=LightningModel(ResNetCIFAR10()),
+            model=LightningModel(ResNetCIFAR10(lr_rate=0.002)),
             data=datashards[i],
             addr=f"127.0.0.1:{args.base_port + i}",
             aggregator=DSGD(),   # <-- key change vs FedAvg

@@ -161,7 +161,7 @@ def main():
     nodes: list[Node] = []
     for i in range(args.n):
         node = Node(
-            model=LightningModel(MLP(lr_rate=0.002)),
+            model=LightningModel(MLP(lr_rate=0.1)),
             data=datashards[i],
             addr=f"127.0.0.1:{args.base_port + i}",
             aggregator=DSGD(),   # <-- key change vs FedAvg

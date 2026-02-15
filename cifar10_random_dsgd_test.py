@@ -25,7 +25,7 @@ def main():
     ap.add_argument("--seed", type=int, default=666, help="Random seed")
     ap.add_argument("--avg-degree", type=int, default=4, choices=[2, 3, 4, 5], 
                     help="Average degree for random topology (2, 3, 4, or 5)")
-    ap.add_argument("--batch-size", type=int, default=256, help="Batch size for training")
+    ap.add_argument("--batch-size", type=int, default=20, help="Batch size for training")
 
     args = ap.parse_args()
 
@@ -36,7 +36,7 @@ def main():
 
     # Load and partition CIFAR-10 dataset
     dataset = P2PFLDataset.from_huggingface("p2pfl/CIFAR10")
-    dataset.batch_size = args.batch_size
+    dataset.batch_size = 20
     
     partitioner = DirichletPartitionStrategy(alpha=args.alpha, seed=args.seed)
     datashards = partitioner.create_partitions(dataset, args.n)
@@ -44,7 +44,7 @@ def main():
     print(f"\n=== CIFAR-10 Dataset ===")
     print(f"Nodes: {args.n}")
     print(f"Alpha: {args.alpha} (Dirichlet non-IID)")
-    print(f"Batch size: {args.batch_size}")
+    print(f"Batch size: 20")
     print("="*50 + "\n")
 
     # Generate random topology
@@ -64,7 +64,7 @@ def main():
     nodes: list[Node] = []
     for i in range(args.n):
         node = Node(
-            model=LightningModel(ResNet9(lr_rate=0.01)),
+            model=LightningModel(ResNet9(lr_rate=0.002)),
             data=datashards[i],
             addr=f"127.0.0.1:{args.base_port + i}",
             aggregator=DSGD(),
