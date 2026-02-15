@@ -44,7 +44,7 @@ def main():
     
     # Increase gossip exit threshold for sparse topology
     # Random topology needs more time for models to propagate through multiple hops
-    Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS = 100  # Much higher to prevent early exit
+    Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS = 100  # High threshold to ensure all nodes complete
     
     print(f"⚙️  Configured timeouts:")
     print(f"   Heartbeat timeout: {Settings.heartbeat.TIMEOUT}s")

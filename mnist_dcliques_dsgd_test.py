@@ -115,7 +115,7 @@ def main():
     
     # Increase gossip exit threshold for D-Cliques topology
     # D-Cliques needs more hops for messages to propagate
-    Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS = 100
+    Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS = 100  # High threshold to ensure all nodes complete
     
     print(f"Ray actor pool size set to {Settings.training.RAY_ACTOR_POOL_SIZE}")
     print(f"⚙️  Configured timeouts:")

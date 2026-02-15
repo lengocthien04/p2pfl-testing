@@ -153,8 +153,23 @@ class TrainStageNeighborOnly(Stage):
             return state.round is None
 
         def get_candidates_fn() -> list[str]:
-            # Only help direct neighbors that are in trainset
-            return [n for n in nodes_to_help if len(TrainStageNeighborOnly.__get_remaining_nodes(n, state, direct_neighbors)) != 0]
+            # CRITICAL FIX: Only help direct neighbors that are in trainset AND still need models
+            # Don't exit early - keep helping until all neighbors have what they need
+            candidates = []
+            for n in nodes_to_help:
+                remaining = TrainStageNeighborOnly.__get_remaining_nodes(n, state, direct_neighbors)
+                if len(remaining) > 0:
+                    candidates.append(n)
+            
+            # If no candidates but we haven't received all our own models yet, keep gossip alive
+            # This prevents early exit when neighbors finished but we're still waiting
+            if len(candidates) == 0:
+                my_remaining = aggregator.get_missing_models()
+                if len(my_remaining) > 0:
+                    # Return self to keep gossip thread alive
+                    return [state.addr] if state.addr in state.train_set else []
+            
+            return candidates
 
         def status_fn() -> Any:
             return [
