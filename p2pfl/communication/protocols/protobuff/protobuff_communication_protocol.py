@@ -36,6 +36,7 @@ from p2pfl.communication.protocols.protobuff.proto import node_pb2
 from p2pfl.communication.protocols.protobuff.server import ProtobuffServer
 from p2pfl.settings import Settings
 from p2pfl.utils.node_component import allow_no_addr_check
+from p2pfl.management.comm_logger import CommLogger
 
 
 def running(func):
@@ -68,8 +69,11 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
         commands: list[Command] | None = None,
     ) -> None:
         """Initialize the GRPC communication protocol."""
+
         # (addr) Super
         CommunicationProtocol.__init__(self)
+        self.comm_logger: CommLogger | None = None
+
         # Neighbors
         self._neighbors = Neighbors(self.bluid_client)
         # Gossip
@@ -83,6 +87,7 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
         if commands is None:
             commands = []
         self.add_command(commands)
+    
 
     @allow_no_addr_check
     @abstractmethod
@@ -131,6 +136,11 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
 
         """
         self._server.add_command(cmds)
+
+    def set_comm_logger(self, comm_logger: CommLogger) -> None:
+        """Attach a communication logger to this protocol."""
+        self.comm_logger = comm_logger
+
 
     @running
     def connect(self, addr: str, non_direct: bool = False) -> bool:
@@ -243,39 +253,46 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
     ) -> None:
         """
         Send a message to a neighbor.
-
-        Args:
-            nei: The neighbor to send the message.
-            msg: The message to send.
-            raise_error: If raise error.
-            remove_on_error: If remove on error.
-
         """
         try:
+            # ---- COMM LOG (OUTGOING) ----
+            if self.comm_logger is not None:
+                r = getattr(msg, "round", None)
+                r = int(r) if r is not None else -1   # -1 = no round
+                self.comm_logger.record_send_bytes(msg.ByteSize(), round_idx=r)
+
             self._neighbors.get(nei).send(msg, raise_error=raise_error, disconnect_on_error=remove_on_error)
+
         except CommunicationError as e:
             if remove_on_error:
                 self._neighbors.remove(nei)
             if raise_error:
                 raise e
 
+
     @running
     def broadcast(self, msg: node_pb2.RootMessage, node_list: list[str] | None = None) -> None:
         """
         Broadcast a message to all neighbors.
-
-        Args:
-            msg: The message to broadcast.
-            node_list: Optional node list.
-
         """
         neis = self._neighbors.get_all(only_direct=True)
         neis_clients = [nei[0] for nei in neis.values()]
+
+        # ---- COMM LOG (OUTGOING) ----
+        if self.comm_logger is not None:
+            r = getattr(msg, "round", None)
+            r = int(r) if r is not None else -1
+            per_packet_bytes = msg.ByteSize()
+            for _ in neis_clients:
+                self.comm_logger.record_send_bytes(per_packet_bytes, round_idx=r)
+
+
         for nei in neis_clients:
             nei.send(msg)
 
+
     @running
-    def get_neighbors(self, only_direct: bool = False) -> dict[str, Any]:
+    def get_neighbors(self, only_direct: bool = True) -> dict[str, Any]:
         """
         Get the neighbors.
 
@@ -328,3 +345,8 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
             period,
             create_connection,
         )
+
+    def save_logs(self) -> None:
+        """Save communication logs to file if configured."""
+        if self.comm_logger:
+            self.comm_logger.save()

@@ -111,6 +111,10 @@ class SuperActorPool(ActorPool):
         if not hasattr(self, "initialized"):
             # Initialize ActorPool
             num_actors = Settings.training.RAY_ACTOR_POOL_SIZE if amount_actors is None else amount_actors
+            
+            # Limit to 10 actors maximum
+            if num_actors > 10:
+                num_actors = 10
 
             # Calculate GPU resources per actor
             self.gpu_per_actor = self._calculate_gpu_per_actor(num_actors)
@@ -141,24 +145,19 @@ class SuperActorPool(ActorPool):
             GPU fraction per actor.
 
         """
-        # Get available GPU resources from Ray (framework-agnostic)
-        available_resources = ray.available_resources()
-        num_gpus = available_resources.get("GPU", 0)
+        # Get TOTAL GPU resources from Ray cluster (not just available)
+        # This ensures we don't over-allocate based on temporarily available resources
+        cluster_resources = ray.cluster_resources()
+        num_gpus = cluster_resources.get("GPU", 0)
 
         if num_gpus == 0:
-            logger.warning("ActorPool", "No GPUs available. Actors will run on CPU only.")
+            logger.info("ActorPool", "No GPUs detected. Actors will run on CPU only.")
             return 0
 
         # Calculate GPU per actor (fractional GPUs allowed in Ray)
         gpu_per_actor = num_gpus / num_actors
 
-        logger.info("ActorPool", f"Ray detected {num_gpus} GPU(s), allocating {gpu_per_actor:.2f} GPU per actor")
-
-        # Log warning if GPU allocation is very small
-        if gpu_per_actor < 0.1:
-            logger.warning(
-                "ActorPool", f"GPU allocation per actor is very small ({gpu_per_actor:.2f}). Consider reducing the number of actors."
-            )
+        logger.info("ActorPool", f"Ray cluster has {num_gpus} GPU(s), allocating {gpu_per_actor:.2f} GPU per actor")
 
         return gpu_per_actor
 
@@ -171,10 +170,12 @@ class SuperActorPool(ActorPool):
 
         """
         # Create actor with GPU resources if available
+        # Actors are reused across nodes, so they need full CPU when active
+        # But Ray allows over-subscription when actors are idle
         if hasattr(self, "gpu_per_actor") and self.gpu_per_actor > 0:
-            return VirtualLearnerActor.options(num_gpus=self.gpu_per_actor).remote()  # type: ignore
+            return VirtualLearnerActor.options(num_gpus=self.gpu_per_actor, num_cpus=1.0).remote()  # type: ignore
         else:
-            return VirtualLearnerActor.options().remote()  # type: ignore
+            return VirtualLearnerActor.options(num_cpus=1.0).remote()  # type: ignore
 
     def add_actor(self, num_actors: int) -> None:
         """
