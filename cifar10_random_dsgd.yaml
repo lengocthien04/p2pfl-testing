@@ -1,0 +1,78 @@
+description: "CIFAR-10 D-SGD with random topology (avg degree 5) and high non-IID data"
+
+network:
+  package: "p2pfl.communication.protocols.protobuff.memory"
+  protocol: "MemoryCommunicationProtocol"
+  nodes: 20
+  topology: "random_5"
+
+experiment:
+  name: "cifar10_random_dsgd"
+  rounds: 50
+  epochs: 1
+  trainset_size: 10
+  seed: 666
+  wait_timeout: 300
+
+  dataset:
+    source: "huggingface"
+    name: "p2pfl/CIFAR10"
+    batch_size: 20
+    transforms:
+      package: "p2pfl.examples.cifar10.transforms"
+      function: "get_cifar10_transforms"
+      params: {}
+    partitioning:
+      package: "p2pfl.learning.dataset.partition_strategies"
+      strategy: "DirichletPartitionStrategy"
+      reduced_dataset: false
+      reduction_factor: 1
+      params:
+        alpha: 0.1
+
+  model:
+    package: "p2pfl.examples.cifar10.model.resnet_pytorch"
+    model_build_fn: "ResNet9"
+    params:
+      lr_rate: 0.002
+
+  aggregator:
+    package: "p2pfl.learning.aggregators.d_sgd"
+    aggregator: "DSGD"
+    params: {}
+
+settings:
+  general:
+    log_level: "INFO"
+    grpc_timeout: 60
+    disable_ray: false
+    resource_monitor_period: 10
+
+  SSL:
+    use_ssl: false
+
+  heartbeat:
+    period: 10
+    timeout: 300
+    wait_convergence: 10
+    exclude_beat_logs: true
+
+  gossip:
+    period: 1
+    ttl: 20
+    messages_per_period: 200
+    amount_last_messages_saved: 1000
+    models_period: 1
+    models_per_round: 4
+    exit_on_x_equal_rounds: 100
+
+  training:
+    vote_timeout: 60
+    aggregation_timeout: 1800
+    ray_actor_pool_size: 10
+    neighbor_only_aggregation: true
+
+profiling:
+  enabled: false
+  measure_time: true
+  output_dir: "profile/cifar10_random_dsgd"
