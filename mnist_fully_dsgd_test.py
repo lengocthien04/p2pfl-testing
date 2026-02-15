@@ -64,7 +64,8 @@ def main():
     TopologyFactory.connect_nodes(matrix, nodes)
 
     # 4) Start decentralized learning from node 0
-    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs)
+    # For fully connected, all nodes should participate in training
+    nodes[0].set_start_learning(rounds=args.rounds, epochs=args.epochs, train_set_size=args.n)
 
     # 5) Wait until finished
     while True:
