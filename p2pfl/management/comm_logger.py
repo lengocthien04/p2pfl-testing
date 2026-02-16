@@ -33,7 +33,7 @@ class CommLogger:
     payload can be bytes OR any python object (we pickle to estimate bytes).
     """
 
-    def __init__(self, node_addr: str) -> None:
+    def __init__(self, node_addr: str, auto_save_path: Optional[str] = None) -> None:
         self.node_addr = node_addr
         self._lock = threading.Lock()
         self._round_stats: Dict[int, RoundCommStats] = {}
@@ -43,7 +43,8 @@ class CommLogger:
         self.packets_out = defaultdict(int)
         self.bytes_in = defaultdict(int)
         self.packets_in = defaultdict(int)
-        self.file_path: Optional[str] = None
+        self.file_path: Optional[str] = auto_save_path
+        self.auto_save: bool = auto_save_path is not None
 
     def start_round(self, round_idx: int) -> None:
         with self._lock:
@@ -54,6 +55,10 @@ class CommLogger:
         with self._lock:
             if self._active_round == round_idx:
                 self._active_round = None
+        
+        # Auto-save after each round if enabled
+        if self.auto_save and self.file_path:
+            self.save()
 
     def _payload_size(self, payload: Any) -> int:
         if payload is None:
@@ -119,9 +124,10 @@ class CommLogger:
             for r, s in items:
                 writer.writerow([r, s.packets_out, s.bytes_out, s.packets_in, s.bytes_in])
 
-    def set_file_path(self, path: str) -> None:
+    def set_file_path(self, path: str, auto_save: bool = True) -> None:
         """Set the file path for automatic saving."""
         self.file_path = path
+        self.auto_save = auto_save
 
     def save(self) -> None:
         """Save the logs to the configured file path."""

@@ -18,21 +18,17 @@ experiment:
     source: "huggingface"
     name: "p2pfl/MNIST"
     batch_size: 128
-    transforms:
-      package: null
-      function: null
-      params: {}
     partitioning:
       package: "p2pfl.learning.dataset.partition_strategies"
       strategy: "DirichletPartitionStrategy"
       reduced_dataset: false
-      reduction_factor: 1
+      reduction_factor: 10
       params:
         alpha: 0.1  # High non-IID
 
   model:
     package: "p2pfl.examples.mnist.model.mlp_pytorch"
-    model_build_fn: "MLP"
+    model_build_fn: "model_build_fn"
     params:
       lr_rate: 0.1
 

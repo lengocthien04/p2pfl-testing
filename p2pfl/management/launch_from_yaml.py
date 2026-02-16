@@ -234,6 +234,15 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
         protocol_package,
         protocol_class_name,
     )
+    
+    # Setup comm logger directory
+    import os
+    from datetime import datetime
+    experiment_name = experiment_config.get("name", "experiment")
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    comm_log_dir = os.path.join("logs", "comm", f"{experiment_name}_{run_id}")
+    os.makedirs(comm_log_dir, exist_ok=True)
+    
     for i in range(n):
         node = Node(
             model_fn(),
@@ -242,7 +251,17 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
             aggregator=aggregator_fn(),
         )
         node.start()
+        
+        # Setup auto-save for comm logger
+        node_name = f"node_{i}"
+        comm_log_path = os.path.join(comm_log_dir, f"{node_name}.csv")
+        if hasattr(node, '_communication_protocol') and node._communication_protocol:
+            if hasattr(node._communication_protocol, 'comm_logger') and node._communication_protocol.comm_logger:
+                node._communication_protocol.comm_logger.set_file_path(comm_log_path, auto_save=True)
+        
         nodes.append(node)
+    
+    print(f"📊 Communication logs will be saved to: {comm_log_dir}")
 
     try:
         # Connect nodes
