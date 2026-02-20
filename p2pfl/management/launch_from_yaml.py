@@ -301,6 +301,17 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
     except Exception as e:
         raise e
     finally:
+        # Save communication logs before stopping nodes
+        print(f"\n💾 Saving communication logs to: {comm_log_dir}")
+        for i, node in enumerate(nodes):
+            if hasattr(node, '_communication_protocol') and node._communication_protocol:
+                if hasattr(node._communication_protocol, 'comm_logger') and node._communication_protocol.comm_logger:
+                    try:
+                        node._communication_protocol.comm_logger.save()
+                        print(f"  ✓ Saved logs for node_{i}")
+                    except Exception as save_err:
+                        print(f"  ✗ Failed to save logs for node_{i}: {save_err}")
+        
         # Stop Nodes
         for node in nodes:
             node.stop()

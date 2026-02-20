@@ -74,6 +74,18 @@ class Learner(ABC, NodeComponent):
 
         # Update callbacks with model info
         self.update_callbacks_with_model_info()
+        
+        # Reset metrics if model has them (for PyTorch Lightning)
+        from p2pfl.management.logger import logger
+        try:
+            pt_model = self.get_model().get_model()
+            logger.info(self.addr, f"🔍 Model type: {type(pt_model)}, has metric: {hasattr(pt_model, 'metric')}")
+            if hasattr(pt_model, 'metric'):
+                logger.info(self.addr, f"🔄 Resetting metric state")
+                pt_model.metric.reset()
+                logger.info(self.addr, f"✅ Metric reset complete")
+        except Exception as e:
+            logger.info(self.addr, f"⚠️ Failed to reset metric: {e}")
 
     @allow_no_addr_check
     def get_model(self) -> P2PFLModel:

@@ -154,8 +154,8 @@ class Aggregator(NodeComponent):
         # TODO: A veces se agregan repetidos
         #
 
-        # Check if aggregation is needed
-        if len(self.__train_set) > len(self.get_aggregated_models()):
+        # Check if aggregation is needed (check actual model count, not contributor count)
+        if len(self.__models) < len(self.__train_set):
             # Check if all nodes are in the train_set
             if all(n in self.__train_set for n in model.get_contributors()):
                 # Check if any model was added
@@ -166,12 +166,15 @@ class Aggregator(NodeComponent):
                     models_added = str(len(self.get_aggregated_models()))
                     logger.info(
                         self.addr,
-                        f"🧩 Model added ({models_added}/{str(len(self.__train_set))}) from {str(model.get_contributors())}",
+                        f"🧩 Model added ({models_added}/{str(len(self.__train_set))}) from {str(model.get_contributors())} - {len(self.__models)} model objects",
                     )
                     # logger.debug(self.addr, f"Models added: {self.get_aggregated_models()}")
 
                     # Check if all models were added
-                    if len(self.get_aggregated_models()) >= len(self.__train_set):
+                    # For D-SGD in fully connected: need actual model count = trainset size
+                    # Each node should contribute exactly one model
+                    if len(self.__models) >= len(self.__train_set):
+                        logger.info(self.addr, f"✅ All {len(self.__train_set)} models collected ({len(self.__models)} model objects)")
                         self._finish_aggregation_event.set()
 
                     # Unlock and Return

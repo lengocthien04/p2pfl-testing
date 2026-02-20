@@ -3,14 +3,14 @@ description: "MNIST D-SGD with random topology (avg degree 5) and high non-IID d
 network:
   package: "p2pfl.communication.protocols.protobuff.memory"
   protocol: "MemoryCommunicationProtocol"
-  nodes: 20
-  topology: "random_5"  # Random topology with average degree 5
+  nodes: 2
+  topology: "random_3"  # Random topology with average degree 5
 
 experiment:
   name: "mnist_random_dsgd"
   rounds: 100
   epochs: 1
-  trainset_size: 10  # Max 10 nodes in trainset to avoid deadlock
+  trainset_size: 8  # Reduced to ensure Ray actor availability (10 actors, need some spare capacity)
   seed: 666
   wait_timeout: 300
 
@@ -49,13 +49,13 @@ settings:
 
   heartbeat:
     period: 10
-    timeout: 300  # 5 minutes
-    wait_convergence: 10
+    timeout: 600  # 10 minutes - increased for slow nodes
+    wait_convergence: 60  # Wait 60s for all nodes to sync before starting round
     exclude_beat_logs: true
 
   gossip:
     period: 1
-    ttl: 20
+    ttl: 30  # Increased TTL for sparse topology (20 nodes, avg degree 5)
     messages_per_period: 200
     amount_last_messages_saved: 1000
     models_period: 1
@@ -66,7 +66,7 @@ settings:
     vote_timeout: 60
     aggregation_timeout: 1800  # 30 minutes
     ray_actor_pool_size: 10
-    neighbor_only_aggregation: true  # TRUE D-SGD
+    neighbor_only_aggregation: false  # Use TrainStage with temporary connections for YAML
 
 profiling:
   enabled: false

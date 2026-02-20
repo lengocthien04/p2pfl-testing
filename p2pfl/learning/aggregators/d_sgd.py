@@ -58,6 +58,11 @@ class DSGD(Aggregator):
             raise NoModelsToAggregateError(f"({self.addr}) Trying to aggregate models when there is no models")
 
         k = len(models)
+        
+        # Log how many models are being aggregated
+        from p2pfl.management.logger import logger
+        contributors_list = [m.get_contributors() for m in models]
+        logger.info(self.addr, f"🔢 Aggregating {k} models from: {contributors_list}")
 
         # Weights
         if self._weights is None:

@@ -53,13 +53,13 @@ settings:
 
   heartbeat:
     period: 10
-    timeout: 300
-    wait_convergence: 10
+    timeout: 600  # 10 minutes - increased for slow nodes
+    wait_convergence: 60  # Wait 60s for all nodes to sync before starting round
     exclude_beat_logs: true
 
   gossip:
     period: 1
-    ttl: 20
+    ttl: 30  # Increased TTL for sparse topology (20 nodes, avg degree 5)
     messages_per_period: 200
     amount_last_messages_saved: 1000
     models_period: 1
@@ -70,7 +70,7 @@ settings:
     vote_timeout: 60
     aggregation_timeout: 1800
     ray_actor_pool_size: 10
-    neighbor_only_aggregation: true
+    neighbor_only_aggregation: false  # Use TrainStage with temporary connections for YAML
 
 profiling:
   enabled: false

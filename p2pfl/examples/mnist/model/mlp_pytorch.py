@@ -106,17 +106,31 @@ class MLP(L.LightningModule):
         """Perform validation step for the MLP."""
         raise NotImplementedError("Validation step not implemented")
 
+    def on_test_start(self) -> None:
+        """Reset metric at the start of test."""
+        self.metric.reset()
+    
     def test_step(self, batch: dict[str, torch.Tensor], batch_id: int) -> torch.Tensor:
         """Test step for the MLP."""
         x = batch["image"].float()
         y = batch["label"]
         logits = self(x)
-        loss = torch.nn.functional.cross_entropy(self(x), y)
+        loss = torch.nn.functional.cross_entropy(logits, y)  # Use logits, don't call self(x) again
         out = torch.argmax(logits, dim=1)
+        
+        # Debug: Log predictions for first batch
+        if batch_id == 0:
+            import logging
+            logging.info(f"Predictions: {out[:10].tolist()}, Labels: {y[:10].tolist()}")
+        
         metric = self.metric(out, y)
         self.log("test_loss", loss, prog_bar=True)
         self.log("test_metric", metric, prog_bar=True)
         return loss
+    
+    def on_test_epoch_end(self) -> None:
+        """Reset metric at the end of test epoch."""
+        self.metric.reset()
 
 
 # Export P2PFL model
