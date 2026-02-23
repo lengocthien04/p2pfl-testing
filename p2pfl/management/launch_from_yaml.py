@@ -274,6 +274,27 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
                 Some messages will not be delivered depending on the topology."""
             )
         adjacency_matrix = TopologyFactory.generate_matrix(topology, len(nodes))
+        
+        # If using D-Cliques topology with DSGDCliqueAvg, set clique members
+        from p2pfl.learning.aggregators.d_sgd_clique_avg import DSGDCliqueAvg
+        if topology in ["dclique_3", "dclique_4", "dclique_5"]:
+            # Determine clique size
+            clique_size = int(topology.split("_")[1])
+            num_cliques = (n + clique_size - 1) // clique_size
+            
+            # Build clique membership map
+            for i, node in enumerate(nodes):
+                if isinstance(node.aggregator, DSGDCliqueAvg):
+                    # Determine which clique this node belongs to
+                    clique_idx = i // clique_size
+                    start = clique_idx * clique_size
+                    end = min(start + clique_size, n)
+                    
+                    # Get addresses of clique members
+                    clique_addrs = {nodes[j].addr for j in range(start, end)}
+                    node.aggregator.set_clique_members(clique_addrs)
+                    print(f"🔗 Node {i} ({node.addr}) in clique {clique_idx}: {clique_addrs}")
+        
         TopologyFactory.connect_nodes(adjacency_matrix, nodes)
         wait_convergence(nodes, n - 1, only_direct=False, wait=60, debug=False)  # type: ignore
 
