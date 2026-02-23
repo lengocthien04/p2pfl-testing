@@ -85,7 +85,7 @@ class TrainStageNeighborOnly(Stage):
             # Aggregate Model
             models_added = aggregator.add_model(learner.get_model())
 
-            # Broadcast model added to direct neighbors only
+            # Broadcast model added
             communication_protocol.broadcast(
                 communication_protocol.build_msg(
                     ModelsAggregatedCommand.get_name(),
@@ -94,7 +94,7 @@ class TrainStageNeighborOnly(Stage):
                 )
             )
             
-            # Gossip models to direct neighbors only (no temporary connections)
+            # Gossip models - use same logic as TrainStage (help everyone, gossip to everyone)
             TrainStageNeighborOnly.__gossip_model_aggregation(state, communication_protocol, aggregator)
 
             check_early_stop(state)
@@ -135,50 +135,19 @@ class TrainStageNeighborOnly(Stage):
         aggregator: Aggregator,
     ) -> None:
         """
-        Gossip model aggregation to DIRECT NEIGHBORS ONLY.
+        Gossip model aggregation - SAME AS TrainStage.
         
-        This is the key difference from the original TrainStage:
-        - Only gossip to direct neighbors (no temporary connections)
-        - Only aggregate from direct neighbors
-        - This implements true D-SGD on sparse topologies
+        Help all nodes in trainset get their models (not just neighbors).
+        This prevents deadlock while still only aggregating from neighbors.
         """
 
-        # Get direct neighbors only
-        direct_neighbors_dict = communication_protocol.get_neighbors(only_direct=True)
-        direct_neighbors = list(direct_neighbors_dict.keys())  # Convert dict to list of addresses
-        nodes_to_help = [n for n in direct_neighbors if n in state.train_set]
-
-        # Anonymous functions
+        # Anonymous functions - COPIED FROM TrainStage
         def early_stopping_fn():
             return state.round is None
 
         def get_candidates_fn() -> list[str]:
-            # Send to neighbors who don't have our model yet
-            candidates = []
-            for n in nodes_to_help:
-                # Check if neighbor already has our model
-                neighbor_models = TrainStageNeighborOnly.__get_aggregated_models(n, state)
-                if state.addr not in neighbor_models:
-                    # Neighbor doesn't have our model yet
-                    candidates.append(n)
-            
-            # Also help neighbors who are missing other models we have
-            for n in nodes_to_help:
-                remaining = TrainStageNeighborOnly.__get_remaining_nodes(n, state, direct_neighbors)
-                if len(remaining) > 0 and n not in candidates:
-                    candidates.append(n)
-            
-            # CRITICAL FIX: Don't exit gossip until WE have all our models
-            # If no neighbors need help but we're still waiting, return a dummy to keep gossip alive
-            if len(candidates) == 0:
-                my_missing = aggregator.get_missing_models()
-                if len(my_missing) > 0:
-                    logger.debug(state.addr, f"⏳ No neighbors to help, but waiting for {len(my_missing)} models. Keeping gossip alive.")
-                    # Return a non-empty list to prevent gossip exit
-                    # The model_fn will handle this gracefully by returning None
-                    return ["__KEEP_ALIVE__"]
-            
-            return candidates
+            candidates = set(state.train_set) - {state.addr}
+            return [n for n in candidates if len(TrainStageNeighborOnly.__get_remaining_nodes(n, state)) != 0]
 
         def status_fn() -> Any:
             return [
@@ -186,18 +155,13 @@ class TrainStageNeighborOnly(Stage):
                     n,
                     TrainStageNeighborOnly.__get_aggregated_models(n, state),
                 )
-                for n in direct_neighbors
+                for n in communication_protocol.get_neighbors(only_direct=False)
                 if (n in state.train_set)
             ]
 
         def model_fn(node: str) -> tuple[Any, str, int, list[str]]:
             if state.round is None:
                 raise Exception("Round not initialized.")
-            
-            # Handle keep-alive dummy
-            if node == "__KEEP_ALIVE__":
-                return (None, PartialModelCommand.get_name(), state.round, [])
-            
             try:
                 model = aggregator.get_model(TrainStageNeighborOnly.__get_aggregated_models(node, state))
             except NoModelsToAggregateError:
@@ -222,13 +186,13 @@ class TrainStageNeighborOnly(Stage):
                 model.get_contributors(),
             )
 
-        # Gossip to direct neighbors only (create_connection=False)
+        # Gossip - SAME AS TrainStage
         communication_protocol.gossip_weights(
             early_stopping_fn,
             get_candidates_fn,
             status_fn,
             model_fn,
-            create_connection=False,  # CRITICAL: No temporary connections!
+            create_connection=True,
         )
 
     @staticmethod
@@ -239,10 +203,24 @@ class TrainStageNeighborOnly(Stage):
             return []
 
     @staticmethod
-    def __get_remaining_nodes(node: str, state: NodeState, direct_neighbors: list[str]) -> set[str]:
-        """Get remaining nodes that this node needs, limited to direct neighbors IN TRAINSET."""
-        # CRITICAL FIX: Node only needs models from neighbors that are in trainset
-        neighbors_in_trainset = [n for n in direct_neighbors if n in state.train_set]
-        needed = set([node] + neighbors_in_trainset)
-        already_has = set(TrainStageNeighborOnly.__get_aggregated_models(node, state))
-        return needed - already_has
+    def __get_remaining_nodes(node: str, state: NodeState) -> set[str]:
+        """
+        Get remaining nodes that this node needs - NEIGHBOR-AWARE VERSION.
+        
+        Unlike TrainStage, nodes only need models from their direct neighbors (not all trainset).
+        We need to check what models 'node' actually needs based on its neighbors.
+        
+        Problem: We don't have access to communication_protocol here to get node's neighbors.
+        Solution: Assume if a node has collected enough models, it's done.
+        """
+        # Get what node has collected
+        collected = set(TrainStageNeighborOnly.__get_aggregated_models(node, state))
+        
+        # In neighbor-only mode, we can't know exactly which neighbors 'node' needs
+        # But we know: if node has collected models and stopped asking, it's done
+        # For now, return empty if node has ANY models (it will handle its own aggregation)
+        # This is a heuristic - gossip will exit when no node is asking for help
+        
+        # Better heuristic: return trainset - collected (same as TrainStage)
+        # The node itself will only aggregate from its neighbors via set_nodes_to_aggregate
+        return set(state.train_set) - collected

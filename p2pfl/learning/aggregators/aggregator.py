@@ -176,8 +176,6 @@ class Aggregator(NodeComponent):
                     if len(self.__models) >= len(self.__train_set):
                         logger.info(self.addr, f"✅ All {len(self.__train_set)} models collected ({len(self.__models)} model objects)")
                         self._finish_aggregation_event.set()
-
-                    # Unlock and Return
                     self.__agg_lock.release()
                     return self.get_aggregated_models()
                 else:
