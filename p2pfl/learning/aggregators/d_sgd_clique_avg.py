@@ -70,9 +70,15 @@ class DSGDCliqueAvg(Aggregator):
         Aggregate models with two-stage clique-aware averaging.
         
         Algorithm:
-        1. Separate models into clique and non-clique
-        2. Average clique models uniformly (stage 1)
-        3. Average clique result with non-clique models uniformly (stage 2)
+        1. Filter models by neighbor_filter (if set) - only keep neighbor models
+        2. Separate clique models from all filtered models
+        3. Average clique models uniformly (stage 1) → produces clique-averaged model
+        4. Average clique-averaged model with ALL filtered neighbor models (stage 2)
+        
+        Example: Node in clique with 3 members, has 4 direct neighbors (3 clique + 1 outside)
+        - Filter: Keep only models from 4 direct neighbors
+        - Stage 1: Average 3 clique models → 1 clique-averaged model
+        - Stage 2: Average 1 clique result + 4 neighbor models = 5 total models
         
         Args:
             models: list of P2PFLModel to mix
@@ -83,14 +89,25 @@ class DSGDCliqueAvg(Aggregator):
         Raises:
             NoModelsToAggregateError: if no models exist
         """
+        # Filter models if neighbor_filter is set (like DSGD does)
+        if hasattr(self, 'neighbor_filter') and self.neighbor_filter is not None:
+            filtered_models = []
+            for m in models:
+                # Check if any contributor is in the neighbor filter
+                if any(c in self.neighbor_filter for c in m.get_contributors()):
+                    filtered_models.append(m)
+            models = filtered_models
+        
         if len(models) == 0:
             raise NoModelsToAggregateError(
                 f"({self.addr}) Trying to aggregate models when there is no models"
             )
 
-        # Separate clique and non-clique models
+        # Keep ALL filtered models as neighbors for stage 2
+        all_neighbor_models = models.copy()
+        
+        # Separate clique models for stage 1
         clique_models = []
-        non_clique_models = []
         
         for model in models:
             contributors = model.get_contributors()
@@ -98,33 +115,24 @@ class DSGDCliqueAvg(Aggregator):
             
             if is_clique_member:
                 clique_models.append(model)
-            else:
-                non_clique_models.append(model)
 
         from p2pfl.management.logger import logger
-        logger.info(self.addr, f"🔢 Clique averaging: {len(clique_models)} clique, {len(non_clique_models)} non-clique")
+        logger.info(self.addr, f"🔢 Clique averaging: {len(clique_models)} clique models, {len(all_neighbor_models)} total neighbor models")
 
-        # Stage 1: Average clique models
+        # Stage 1: Average clique models to get single clique-averaged model
         if len(clique_models) > 0:
             clique_averaged = self._uniform_average(clique_models)
+            logger.info(self.addr, f"✅ Stage 1: Averaged {len(clique_models)} clique models")
         else:
-            # No clique models, just use first model as placeholder
-            clique_averaged = None
+            # No clique models - just do regular D-SGD averaging
+            logger.info(self.addr, f"⚠️ No clique models, using regular D-SGD")
+            return self._uniform_average(all_neighbor_models)
 
-        # Stage 2: Average with non-clique models
-        if clique_averaged is not None and len(non_clique_models) > 0:
-            # Both clique and non-clique: average them together
-            all_models = [clique_averaged] + non_clique_models
-            return self._uniform_average(all_models)
-        elif clique_averaged is not None:
-            # Only clique models
-            return clique_averaged
-        elif len(non_clique_models) > 0:
-            # Only non-clique models
-            return self._uniform_average(non_clique_models)
-        else:
-            # Should never happen (caught by len(models) == 0 check)
-            raise NoModelsToAggregateError("No models to aggregate")
+        # Stage 2: Average clique-averaged model with ALL neighbor models (D-SGD style)
+        # This includes the original clique models that are neighbors
+        all_models_for_stage2 = [clique_averaged] + all_neighbor_models
+        logger.info(self.addr, f"✅ Stage 2: Averaging 1 clique result + {len(all_neighbor_models)} neighbors = {len(all_models_for_stage2)} total")
+        return self._uniform_average(all_models_for_stage2)
 
     def _uniform_average(self, models: list[P2PFLModel]) -> P2PFLModel:
         """Uniform averaging of models (1/K weight for each)."""
