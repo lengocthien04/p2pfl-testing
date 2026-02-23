@@ -1,13 +1,13 @@
-description: "MNIST D-SGD with random max-degree topology and high non-IID data"
+description: "CIFAR-10 D-SGD with fully connected topology and high non-IID data"
 
 network:
   package: "p2pfl.communication.protocols.protobuff.memory"
   protocol: "MemoryCommunicationProtocol"
   nodes: 12
-  topology: "random_max_3" # Random topology with max degree 3
+  topology: "fully_connected"
 
 experiment:
-  name: "mnist_random_dsgd"
+  name: "cifar10_fully_dsgd"
   rounds: 100
   epochs: 1
   trainset_size: 12
@@ -16,22 +16,25 @@ experiment:
 
   dataset:
     source: "huggingface"
-    name: "p2pfl/MNIST"
-    batch_size: 128
+    name: "p2pfl/CIFAR10"
+    batch_size: 20
+    transforms:
+      package: "p2pfl.examples.cifar10.transforms"
+      function: "get_cifar10_transforms"
+      params: {}
     partitioning:
       package: "p2pfl.learning.dataset.partition_strategies"
       strategy: "DirichletPartitionStrategy"
       reduced_dataset: false
       reduction_factor: 10
       params:
-        alpha: 0.1 # High non-IID
-        self_balancing: true
+        alpha: 0.1
 
   model:
-    package: "p2pfl.examples.mnist.model.mlp_pytorch"
+    package: "p2pfl.examples.cifar10.model.resnet_pytorch"
     model_build_fn: "model_build_fn"
     params:
-      lr_rate: 0.1
+      lr_rate: 0.002
 
   aggregator:
     package: "p2pfl.learning.aggregators.d_sgd"
@@ -58,19 +61,19 @@ settings:
   gossip:
     period: 1
     ttl: 30
-    messages_per_period: 9999999
+    messages_per_period: 200
     amount_last_messages_saved: 1000
-    models_period: 0.5
-    models_per_round: 10
-    exit_on_x_equal_rounds: 100 # Increased threshold
+    models_period: 1
+    models_per_round: 4
+    exit_on_x_equal_rounds: 100
 
   training:
     vote_timeout: 60
     aggregation_timeout: 1800
     ray_actor_pool_size: 10
-    neighbor_only_aggregation: true # Aggregate from neighbors only (D-SGD on sparse topology)
+    neighbor_only_aggregation: false
 
 profiling:
   enabled: false
   measure_time: true
-  output_dir: "profile/mnist_random_dsgd"
+  output_dir: "profile/cifar10_fully_dsgd"

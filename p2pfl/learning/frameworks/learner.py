@@ -79,7 +79,6 @@ class Learner(ABC, NodeComponent):
         from p2pfl.management.logger import logger
         try:
             pt_model = self.get_model().get_model()
-            logger.info(self.addr, f"🔍 Model type: {type(pt_model)}, has metric: {hasattr(pt_model, 'metric')}")
             if hasattr(pt_model, 'metric'):
                 logger.info(self.addr, f"🔄 Resetting metric state")
                 pt_model.metric.reset()

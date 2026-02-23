@@ -56,7 +56,22 @@ class TrainStage(Stage):
             check_early_stop(state)
 
             # Set Models To Aggregate
-            aggregator.set_nodes_to_aggregate(state.train_set)
+            from p2pfl.settings import Settings
+            if Settings.training.NEIGHBOR_ONLY_AGGREGATION:
+                # Accept models from all trainset (for gossip to work)
+                aggregator.set_nodes_to_aggregate(state.train_set)
+                # But only aggregate from neighbors
+                direct_neighbors_dict = communication_protocol.get_neighbors(only_direct=True)
+                direct_neighbors = list(direct_neighbors_dict.keys())
+                neighbors_in_trainset = [n for n in direct_neighbors if n in state.train_set]
+                nodes_to_actually_aggregate = set([state.addr] + neighbors_in_trainset)
+                # Set filter on aggregator
+                aggregator.neighbor_filter = nodes_to_actually_aggregate
+                logger.info(state.addr, f"🎯 Neighbor-only: accepting all, aggregating from {len(nodes_to_actually_aggregate)} neighbors")
+            else:
+                # Aggregate from all trainset (fully connected)
+                aggregator.set_nodes_to_aggregate(state.train_set)
+                aggregator.neighbor_filter = None
 
             check_early_stop(state)
 

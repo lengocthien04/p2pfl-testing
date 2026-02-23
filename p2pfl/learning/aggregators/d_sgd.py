@@ -54,6 +54,15 @@ class DSGD(Aggregator):
             NoModelsToAggregateError: if no models exist.
             ValueError: if weights invalid.
         """
+        # Filter models if neighbor_filter is set
+        if hasattr(self, 'neighbor_filter') and self.neighbor_filter is not None:
+            filtered_models = []
+            for m in models:
+                # Check if any contributor is in the neighbor filter
+                if any(c in self.neighbor_filter for c in m.get_contributors()):
+                    filtered_models.append(m)
+            models = filtered_models
+        
         if len(models) == 0:
             raise NoModelsToAggregateError(f"({self.addr}) Trying to aggregate models when there is no models")
 

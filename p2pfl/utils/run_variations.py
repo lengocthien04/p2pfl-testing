@@ -365,6 +365,7 @@ def run_variations_experiment(
             "FedAdam": "p2pfl.learning.aggregators.fedopt",
             "Krum": "p2pfl.learning.aggregators.krum",
             "DSGD": "p2pfl.learning.aggregators.d_sgd",
+            "DSGDCliqueAvg": "p2pfl.learning.aggregators.d_sgd_clique_avg",
         }
         # We'll handle aggregator variations specially after creating combinations
         variations["_aggregator_config"] = [

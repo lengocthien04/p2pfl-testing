@@ -41,6 +41,9 @@ class TopologyType(Enum):
     RANDOM_MAX_3 = "random_max_3"  # Random graph with maximum degree 3
     RANDOM_MAX_4 = "random_max_4"  # Random graph with maximum degree 4
     RANDOM_MAX_5 = "random_max_5"  # Random graph with maximum degree 5
+    DCLIQUE_3 = "dclique_3"  # D-Cliques with clique size 3
+    DCLIQUE_4 = "dclique_4"  # D-Cliques with clique size 4
+    DCLIQUE_5 = "dclique_5"  # D-Cliques with clique size 5
 
 
 class TopologyFactory:
@@ -143,6 +146,46 @@ class TopologyFactory:
                     matrix[j, i] = 1
                     degrees[i] += 1
                     degrees[j] += 1
+        elif topology_type in [TopologyType.DCLIQUE_3, TopologyType.DCLIQUE_4, TopologyType.DCLIQUE_5]:
+            # D-Cliques: partition nodes into cliques, fully connect within cliques,
+            # then add inter-clique edges with small-world pattern
+            if num_nodes <= 1:
+                return matrix
+            
+            if topology_type == TopologyType.DCLIQUE_3:
+                clique_size = 3
+            elif topology_type == TopologyType.DCLIQUE_4:
+                clique_size = 4
+            else:  # DCLIQUE_5
+                clique_size = 5
+            
+            # Partition nodes into cliques
+            num_cliques = (num_nodes + clique_size - 1) // clique_size
+            cliques = []
+            for c in range(num_cliques):
+                start = c * clique_size
+                end = min(start + clique_size, num_nodes)
+                cliques.append(list(range(start, end)))
+            
+            # Fully connect within each clique
+            for clique in cliques:
+                for i in clique:
+                    for j in clique:
+                        if i != j:
+                            matrix[i, j] = 1
+            
+            # Add inter-clique edges with small-world pattern (power-of-2 offsets)
+            # Connect clique i to cliques at offsets 1, 2, 4, ... (up to 2 hops)
+            for c in range(num_cliques):
+                for k in range(2):  # 2^0=1, 2^1=2
+                    offset = 2**k
+                    target_c = (c + offset) % num_cliques
+                    if target_c != c and len(cliques[c]) > 0 and len(cliques[target_c]) > 0:
+                        # Connect first node of each clique (simple bridge)
+                        i = cliques[c][0]
+                        j = cliques[target_c][0]
+                        matrix[i, j] = 1
+                        matrix[j, i] = 1
         else:
             raise ValueError(f"Unsupported topology type: {topology_type}")
 

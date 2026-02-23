@@ -1,13 +1,13 @@
-description: "MNIST D-SGD with random max-degree topology and high non-IID data"
+description: "MNIST D-SGD with D-Cliques topology (clique size 3) and high non-IID data"
 
 network:
   package: "p2pfl.communication.protocols.protobuff.memory"
   protocol: "MemoryCommunicationProtocol"
   nodes: 12
-  topology: "random_max_3" # Random topology with max degree 3
+  topology: "dclique_3"
 
 experiment:
-  name: "mnist_random_dsgd"
+  name: "mnist_dclique_dsgd"
   rounds: 100
   epochs: 1
   trainset_size: 12
@@ -24,7 +24,7 @@ experiment:
       reduced_dataset: false
       reduction_factor: 10
       params:
-        alpha: 0.1 # High non-IID
+        alpha: 0.1
         self_balancing: true
 
   model:
@@ -62,15 +62,15 @@ settings:
     amount_last_messages_saved: 1000
     models_period: 0.5
     models_per_round: 10
-    exit_on_x_equal_rounds: 100 # Increased threshold
+    exit_on_x_equal_rounds: 100
 
   training:
     vote_timeout: 60
     aggregation_timeout: 1800
     ray_actor_pool_size: 10
-    neighbor_only_aggregation: true # Aggregate from neighbors only (D-SGD on sparse topology)
+    neighbor_only_aggregation: true
 
 profiling:
   enabled: false
   measure_time: true
-  output_dir: "profile/mnist_random_dsgd"
+  output_dir: "profile/mnist_dclique_dsgd"

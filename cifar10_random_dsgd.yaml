@@ -3,14 +3,14 @@ description: "CIFAR-10 D-SGD with random topology (avg degree 5) and high non-II
 network:
   package: "p2pfl.communication.protocols.protobuff.memory"
   protocol: "MemoryCommunicationProtocol"
-  nodes: 20
-  topology: "random_5"
+  nodes: 12
+  topology: "random_max_3"
 
 experiment:
   name: "cifar10_random_dsgd"
-  rounds: 50
+  rounds: 100
   epochs: 1
-  trainset_size: 10
+  trainset_size: 12
   seed: 666
   wait_timeout: 300
 

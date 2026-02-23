@@ -49,6 +49,12 @@ class GossipModelStage(Stage):
         if state is None or aggregator is None or communication_protocol is None or learner is None:
             raise Exception("Invalid parameters on GossipModelStage.")
 
+        # Skip gossip if neighbor_only_aggregation is enabled (nodes already have what they need)
+        from p2pfl.settings import Settings
+        if Settings.training.NEIGHBOR_ONLY_AGGREGATION:
+            logger.info(state.addr, "⏭️ Skipping model gossip (neighbor-only mode)")
+            return StageFactory.get_stage("RoundFinishedStage")
+        
         GossipModelStage.__gossip_model_difusion(state, communication_protocol, learner)
         return StageFactory.get_stage("RoundFinishedStage")
 
