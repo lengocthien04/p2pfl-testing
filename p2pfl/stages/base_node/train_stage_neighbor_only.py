@@ -153,11 +153,19 @@ class TrainStageNeighborOnly(Stage):
             return state.round is None
 
         def get_candidates_fn() -> list[str]:
-            # Help direct neighbors that are in trainset AND still need models
+            # Send to neighbors who don't have our model yet
             candidates = []
             for n in nodes_to_help:
+                # Check if neighbor already has our model
+                neighbor_models = TrainStageNeighborOnly.__get_aggregated_models(n, state)
+                if state.addr not in neighbor_models:
+                    # Neighbor doesn't have our model yet
+                    candidates.append(n)
+            
+            # Also help neighbors who are missing other models we have
+            for n in nodes_to_help:
                 remaining = TrainStageNeighborOnly.__get_remaining_nodes(n, state, direct_neighbors)
-                if len(remaining) > 0:
+                if len(remaining) > 0 and n not in candidates:
                     candidates.append(n)
             
             # CRITICAL FIX: Don't exit gossip until WE have all our models

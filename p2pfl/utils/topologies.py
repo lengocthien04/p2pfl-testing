@@ -38,6 +38,9 @@ class TopologyType(Enum):
     RANDOM_3 = "random_3"  # Random graph with average degree 3
     RANDOM_4 = "random_4"  # Random graph with average degree 4
     RANDOM_5 = "random_5"  # Random graph with average degree 5
+    RANDOM_MAX_3 = "random_max_3"  # Random graph with maximum degree 3
+    RANDOM_MAX_4 = "random_max_4"  # Random graph with maximum degree 4
+    RANDOM_MAX_5 = "random_max_5"  # Random graph with maximum degree 5
 
 
 class TopologyFactory:
@@ -108,6 +111,38 @@ class TopologyFactory:
                     i, j = possible_edges[index]
                     matrix[i, j] = 1
                     matrix[j, i] = 1
+        elif topology_type in [TopologyType.RANDOM_MAX_3, TopologyType.RANDOM_MAX_4, TopologyType.RANDOM_MAX_5]:
+            # Random graph with maximum degree constraint
+            if num_nodes <= 1:
+                return matrix
+            
+            if topology_type == TopologyType.RANDOM_MAX_3:
+                max_degree = 3
+            elif topology_type == TopologyType.RANDOM_MAX_4:
+                max_degree = 4
+            else:  # RANDOM_MAX_5
+                max_degree = 5
+            
+            # Track degree of each node
+            degrees = np.zeros(num_nodes, dtype=int)
+            rng = np.random.default_rng()
+            
+            # Create list of all possible edges
+            possible_edges = []
+            for i in range(num_nodes):
+                for j in range(i + 1, num_nodes):
+                    possible_edges.append((i, j))
+            
+            # Shuffle edges randomly
+            rng.shuffle(possible_edges)
+            
+            # Add edges while respecting max degree constraint
+            for i, j in possible_edges:
+                if degrees[i] < max_degree and degrees[j] < max_degree:
+                    matrix[i, j] = 1
+                    matrix[j, i] = 1
+                    degrees[i] += 1
+                    degrees[j] += 1
         else:
             raise ValueError(f"Unsupported topology type: {topology_type}")
 
