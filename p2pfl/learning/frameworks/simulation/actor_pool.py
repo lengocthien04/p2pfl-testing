@@ -162,10 +162,10 @@ class SuperActorPool(ActorPool):
             logger.info("ActorPool", "No GPUs detected. Actors will run on CPU only.")
             return 0
 
-        # Calculate GPU per actor (fractional GPUs allowed in Ray)
-        gpu_per_actor = num_gpus / num_actors
+        # Always allocate 0.1 GPU per actor (maximum 10 actors per GPU)
+        gpu_per_actor = 0.1
 
-        logger.info("ActorPool", f"Ray cluster has {num_gpus} GPU(s), allocating {gpu_per_actor:.2f} GPU per actor")
+        logger.info("ActorPool", f"Ray cluster has {num_gpus} GPU(s), allocating {gpu_per_actor:.2f} GPU per actor (max {int(num_gpus / gpu_per_actor)} actors)")
 
         return gpu_per_actor
 
