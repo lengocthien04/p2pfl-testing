@@ -1,16 +1,16 @@
-description: "MNIST D-SGD with random topology (avg degree 5) and high non-IID data"
+description: "MNIST D-SGD with random max-degree topology and high non-IID data"
 
 network:
   package: "p2pfl.communication.protocols.protobuff.memory"
   protocol: "MemoryCommunicationProtocol"
-  nodes: 2
-  topology: "random_3"  # Random topology with average degree 5
+  nodes: 12
+  topology: "random_max_3"  # Random topology with max degree 3
 
 experiment:
   name: "mnist_random_dsgd"
   rounds: 100
   epochs: 1
-  trainset_size: 8  # Reduced to ensure Ray actor availability (10 actors, need some spare capacity)
+  trainset_size: 12
   seed: 666
   wait_timeout: 300
 
@@ -25,17 +25,19 @@ experiment:
       reduction_factor: 10
       params:
         alpha: 0.1  # High non-IID
+        self_balancing: true
 
   model:
     package: "p2pfl.examples.mnist.model.mlp_pytorch"
     model_build_fn: "model_build_fn"
     params:
-      lr_rate: 0.1
+      lr_rate: 0.001
 
   aggregator:
     package: "p2pfl.learning.aggregators.d_sgd"
     aggregator: "DSGD"
-    params: {}
+    params:
+      disable_partial_aggregation: true
 
 settings:
   general:
@@ -49,24 +51,24 @@ settings:
 
   heartbeat:
     period: 10
-    timeout: 600  # 10 minutes - increased for slow nodes
-    wait_convergence: 60  # Wait 60s for all nodes to sync before starting round
+    timeout: 600
+    wait_convergence: 60
     exclude_beat_logs: true
 
   gossip:
     period: 1
-    ttl: 30  # Increased TTL for sparse topology (20 nodes, avg degree 5)
+    ttl: 30
     messages_per_period: 200
     amount_last_messages_saved: 1000
     models_period: 1
     models_per_round: 4
-    exit_on_x_equal_rounds: 100  # High threshold to ensure completion
+    exit_on_x_equal_rounds: 100
 
   training:
     vote_timeout: 60
-    aggregation_timeout: 1800  # 30 minutes
+    aggregation_timeout: 1800
     ray_actor_pool_size: 10
-    neighbor_only_aggregation: false  # Use TrainStage with temporary connections for YAML
+    neighbor_only_aggregation: true  # True D-SGD with neighbor-only aggregation
 
 profiling:
   enabled: false
