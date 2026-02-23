@@ -31,7 +31,7 @@ experiment:
     package: "p2pfl.examples.mnist.model.mlp_pytorch"
     model_build_fn: "model_build_fn"
     params:
-      lr_rate: 0.1
+      lr_rate: 0.001
 
   aggregator:
     package: "p2pfl.learning.aggregators.d_sgd"
