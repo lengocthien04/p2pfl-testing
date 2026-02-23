@@ -178,12 +178,12 @@ class SuperActorPool(ActorPool):
 
         """
         # Create actor with GPU resources if available
-        # Actors are reused across nodes, so they need full CPU when active
-        # But Ray allows over-subscription when actors are idle
+        # Use 0.25 CPU per actor to allow more actors on limited CPU systems
+        # Ray allows over-subscription when actors are idle
         if hasattr(self, "gpu_per_actor") and self.gpu_per_actor > 0:
-            return VirtualLearnerActor.options(num_gpus=self.gpu_per_actor, num_cpus=1.0).remote()  # type: ignore
+            return VirtualLearnerActor.options(num_gpus=self.gpu_per_actor, num_cpus=0.25).remote()  # type: ignore
         else:
-            return VirtualLearnerActor.options(num_cpus=1.0).remote()  # type: ignore
+            return VirtualLearnerActor.options(num_cpus=0.25).remote()  # type: ignore
 
     def add_actor(self, num_actors: int) -> None:
         """
