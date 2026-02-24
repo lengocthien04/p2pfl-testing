@@ -1,4 +1,4 @@
-description: "CIFAR-10 D-SGD with D-Cliques topology (clique size 3) and clique averaging"
+description: "CIFAR-10 D-SGD with D-Cliques topology (clique size 4) and clique averaging"
 
 network:
   package: "p2pfl.communication.protocols.protobuff.memory"
