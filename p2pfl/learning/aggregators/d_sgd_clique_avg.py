@@ -138,12 +138,19 @@ class DSGDCliqueAvg(Aggregator):
         """Uniform averaging of models (1/K weight for each)."""
         k = len(models)
         first_params = models[0].get_parameters()
-        accum = [np.zeros_like(layer) for layer in first_params]
+        # Use float64 arrays to avoid casting issues
+        accum = [np.zeros_like(layer, dtype=np.float64) for layer in first_params]
         
         for model in models:
             params = model.get_parameters()
             for i, layer in enumerate(params):
-                accum[i] += layer / k
+                # Convert to float64 for averaging
+                accum[i] += layer.astype(np.float64) / k
+        
+        # Convert back to original dtypes
+        result_params = []
+        for i, layer in enumerate(first_params):
+            result_params.append(accum[i].astype(layer.dtype))
         
         contributors = []
         for m in models:
@@ -152,7 +159,7 @@ class DSGDCliqueAvg(Aggregator):
         total_samples = sum([m.get_num_samples() for m in models])
         
         return models[0].build_copy(
-            params=accum,
+            params=result_params,
             num_samples=total_samples,
             contributors=contributors
         )
