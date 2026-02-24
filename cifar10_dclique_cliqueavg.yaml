@@ -18,6 +18,9 @@ experiment:
     source: "huggingface"
     name: "p2pfl/CIFAR10"
     batch_size: 20
+    num_workers: 4
+    pin_memory: true
+    persistent_workers: true
     transforms:
       package: "p2pfl.examples.cifar10.transforms"
       function: "get_cifar10_transforms"
@@ -45,10 +48,10 @@ experiment:
 
 settings:
   general:
-    log_level: "INFO"
+    log_level: "WARNING"
     grpc_timeout: 60
     disable_ray: false
-    resource_monitor_period: 10
+    resource_monitor_period: 0
 
   SSL:
     use_ssl: false
@@ -63,7 +66,7 @@ settings:
     period: 1
     ttl: 30
     messages_per_period: 200
-    amount_last_messages_saved: 1000
+    amount_last_messages_saved: 100
     models_period: 1
     models_per_round: 4
     exit_on_x_equal_rounds: 100
@@ -71,10 +74,10 @@ settings:
   training:
     vote_timeout: 60
     aggregation_timeout: 1800
-    ray_actor_pool_size: 6
+    ray_actor_pool_size: 4
     neighbor_only_aggregation: true
 
 profiling:
   enabled: false
-  measure_time: true
+  measure_time: false
   output_dir: "profile/cifar10_dclique_cliqueavg"
