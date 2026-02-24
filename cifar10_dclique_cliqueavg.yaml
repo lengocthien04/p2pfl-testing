@@ -63,18 +63,18 @@ settings:
     exclude_beat_logs: true
 
   gossip:
-    period: 1
+    period: 0.1
     ttl: 30
     messages_per_period: 1000
     amount_last_messages_saved: 500
-    models_period: 0.1
+    models_period: 0.05
     models_per_round: 24
-    exit_on_x_equal_rounds: 100
+    exit_on_x_equal_rounds: 200
 
   training:
     vote_timeout: 120
     aggregation_timeout: 3600
-    ray_actor_pool_size: 12
+    ray_actor_pool_size: 24
     neighbor_only_aggregation: true
 
 profiling:

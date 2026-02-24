@@ -22,6 +22,7 @@ import random
 import threading
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from p2pfl.communication.commands.message.pre_send_model_command import PreSendModelCommand
@@ -234,27 +235,41 @@ class Gossiper(threading.Thread, NodeComponent):
             # Getting all nodes and forcing tmp direct message
             neis_clients = [v[0] for k, v in self.__neighbors.get_all(only_direct=False).items() if k in neis]
 
-            # Generate and Send Model Partial Aggregations (model, node_contributors)
-            for client in neis_clients:
-                # Get Model
-                model, command_name, round, model_hashes = model_fn(client.nei_addr)
-                if model is None:
-                    continue
+            # Generate and Send Model Partial Aggregations (model, node_contributors) - PARALLELIZED
+            def send_to_client(client):
+                """Send model to a single client."""
+                try:
+                    # Get Model
+                    model, command_name, round, model_hashes = model_fn(client.nei_addr)
+                    if model is None:
+                        return
 
-                # Pre send weights
-                presend_msg = self.build_msg_fn(PreSendModelCommand.get_name(), [command_name] + model_hashes, round, direct=True)
-                presend_response = client.send(presend_msg, temporal_connection=temporal_connection)
+                    # Pre send weights
+                    presend_msg = self.build_msg_fn(PreSendModelCommand.get_name(), [command_name] + model_hashes, round, direct=True)
+                    presend_response = client.send(presend_msg, temporal_connection=temporal_connection)
 
-                # Send model
-                if presend_response != "true":
-                    logger.debug(
-                        self.addr, f"Avoiding concurrent model sending to {client.nei_addr}. Msg: {command_name} | Hash: {model_hashes}"
-                    )
-                    continue
+                    # Send model
+                    if presend_response != "true":
+                        logger.debug(
+                            self.addr, f"Avoiding concurrent model sending to {client.nei_addr}. Msg: {command_name} | Hash: {model_hashes}"
+                        )
+                        return
 
-                # Send
-                logger.debug(self.addr, f"🗣️ Gossiping model to {client.nei_addr}.")
-                client.send(model, temporal_connection=temporal_connection)
+                    # Send
+                    logger.debug(self.addr, f"🗣️ Gossiping model to {client.nei_addr}.")
+                    client.send(model, temporal_connection=temporal_connection)
+                except Exception as e:
+                    logger.error(self.addr, f"Error sending to {client.nei_addr}: {e}")
+
+            # Use ThreadPoolExecutor to send in parallel
+            with ThreadPoolExecutor(max_workers=min(len(neis_clients), 24)) as executor:
+                futures = [executor.submit(send_to_client, client) for client in neis_clients]
+                # Wait for all sends to complete
+                for future in as_completed(futures):
+                    try:
+                        future.result()
+                    except Exception as e:
+                        logger.error(self.addr, f"Error in parallel send: {e}")
 
             # Sleep to allow periodicity
             sleep_time = max(0, period - (t - time.time()))
