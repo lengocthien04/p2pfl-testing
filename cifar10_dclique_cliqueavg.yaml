@@ -48,10 +48,10 @@ experiment:
 
 settings:
   general:
-    log_level: "WARNING"
+    log_level: "INFO"
     grpc_timeout: 60
     disable_ray: false
-    resource_monitor_period: 0
+    resource_monitor_period: 10
 
   SSL:
     use_ssl: false
@@ -66,7 +66,7 @@ settings:
     period: 1
     ttl: 30
     messages_per_period: 200
-    amount_last_messages_saved: 100
+    amount_last_messages_saved: 500
     models_period: 1
     models_per_round: 4
     exit_on_x_equal_rounds: 100
@@ -79,5 +79,5 @@ settings:
 
 profiling:
   enabled: false
-  measure_time: false
+  measure_time: true
   output_dir: "profile/cifar10_dclique_cliqueavg"
