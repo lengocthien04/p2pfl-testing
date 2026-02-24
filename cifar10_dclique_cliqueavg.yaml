@@ -3,14 +3,14 @@ description: "CIFAR-10 D-SGD with D-Cliques topology (clique size 3) and clique 
 network:
   package: "p2pfl.communication.protocols.protobuff.memory"
   protocol: "MemoryCommunicationProtocol"
-  nodes: 12
-  topology: "dclique_3"
+  nodes: 24
+  topology: "dclique_4"
 
 experiment:
   name: "cifar10_dclique_cliqueavg"
   rounds: 100
   epochs: 1
-  trainset_size: 12
+  trainset_size: 24
   seed: 666
   wait_timeout: 300
 
@@ -74,7 +74,7 @@ settings:
   training:
     vote_timeout: 60
     aggregation_timeout: 1800
-    ray_actor_pool_size: 4
+    ray_actor_pool_size: 12
     neighbor_only_aggregation: true
 
 profiling:
