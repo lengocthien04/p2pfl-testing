@@ -295,21 +295,25 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
                         else:
                             train_data = data
                         
-                        # Count labels
-                        if hasattr(train_data, 'targets'):
-                            labels = train_data.targets
-                        elif hasattr(train_data, 'labels'):
-                            labels = train_data.labels
-                        elif 'label' in train_data.column_names:
-                            labels = train_data['label']
+                        # Access raw data without transforms using the underlying data
+                        # HuggingFace datasets store raw data in _data attribute
+                        if hasattr(train_data, '_data'):
+                            # Access the PyArrow table directly
+                            raw_labels = train_data._data.column('label').to_pylist()
                         else:
-                            # Fallback: iterate through dataset
-                            labels = [item['label'] if isinstance(item, dict) else item[1] for item in train_data]
+                            # Fallback: temporarily disable transforms
+                            old_transform = train_data._format_kwargs.get('transform') if hasattr(train_data, '_format_kwargs') else None
+                            train_data.set_transform(None)
+                            raw_labels = train_data['label']
+                            if old_transform:
+                                train_data.set_transform(old_transform)
                         
-                        label_counts = Counter(labels)
+                        label_counts = Counter(raw_labels)
                         node_labels[f"node_{i}"] = {str(k): float(v) for k, v in label_counts.items()}
                 except Exception as e:
+                    import traceback
                     print(f"⚠️ Could not extract labels for node {i}: {e}")
+                    print(f"Traceback: {traceback.format_exc()}")
                     # Fallback to sequential assignment
                     node_labels = None
                     break

@@ -237,12 +237,11 @@ def build_interclique_edges_dcliques(
             _add_edge(edges, i, (i + stride) % num_cliques)
         return sorted(edges)
 
-    # small_world: power-of-two offsets BOTH directions
-    for k in range(small_world_c):
+    # small_world: power-of-two offsets starting from 2^1=2 (ring already covers offset=1)
+    for k in range(1, small_world_c + 1):
         offset = 2**k
         for i in range(num_cliques):
             _add_edge(edges, i, (i + offset) % num_cliques)
-            _add_edge(edges, i, (i - offset) % num_cliques)
 
     return sorted(edges)
 
@@ -350,5 +349,12 @@ def build_dcliques_adjacency_matrix(
         add(u, v)
     for u, v in inter_edges:
         add(u, v)
+
+    # Debug: print neighbor counts
+    print(f"DEBUG: Total intra edges: {len(intra_edges)}, inter edges: {len(inter_edges)}")
+    for i, node_id in enumerate(node_order):
+        neighbor_count = sum(A[i])
+        if neighbor_count > 5:
+            print(f"DEBUG: {node_id} has {neighbor_count} neighbors (UNEXPECTED!)")
 
     return A, cliques
