@@ -201,10 +201,20 @@ def save_experiment_results(results_dir: Path, start_time: float) -> None:
             for exp, nodes in global_metrics_data.items():
                 for node, metrics in nodes.items():
                     for metric_name, values in metrics.items():
-                        for round_num, value in values:
+                        # Handle both list of tuples and single tuple
+                        if isinstance(values, list):
+                            for round_num, value in values:
+                                flattened_global_metrics.append(
+                                    {"experiment": exp, "node": node, "metric": metric_name, "round": round_num, "value": value}
+                                )
+                        elif isinstance(values, tuple) and len(values) == 2:
+                            # Single tuple case
+                            round_num, value = values
                             flattened_global_metrics.append(
                                 {"experiment": exp, "node": node, "metric": metric_name, "round": round_num, "value": value}
                             )
+                        else:
+                            print(f"Warning: Unexpected format for metric {metric_name}: {type(values)}")
 
             if flattened_global_metrics:
                 pandas_global_metrics = pd.DataFrame(flattened_global_metrics)
@@ -213,6 +223,8 @@ def save_experiment_results(results_dir: Path, start_time: float) -> None:
                 print(f"Saved global metrics log to: {global_metrics_csv_path}")
         except Exception as e:
             print(f"Error saving global metrics: {e}")
+            import traceback
+            traceback.print_exc()
 
     # Save system metrics
     system_metrics_data = logger.get_system_metrics()
