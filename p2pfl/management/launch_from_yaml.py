@@ -370,8 +370,14 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
         print(f"🔗 Connecting nodes with topology...")
         TopologyFactory.connect_nodes(adjacency_matrix, nodes)
         print(f"✅ Nodes connected, waiting for convergence...")
-        wait_convergence(nodes, n - 1, only_direct=False, wait=60, debug=False)  # type: ignore
-        print(f"✅ Convergence complete")
+        try:
+            wait_convergence(nodes, n - 1, only_direct=False, wait=60, debug=False)  # type: ignore
+            print(f"✅ Convergence complete")
+        except Exception as e:
+            print(f"❌ Error during convergence: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
         # Additional connections
         additional_connections = network_config.get("additional_connections")

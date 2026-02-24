@@ -11,6 +11,8 @@ import random
 from collections import Counter, defaultdict
 from typing import Dict, Iterable, List, Mapping, Sequence, Set, Tuple
 
+import numpy as np
+
 LabelDist = Dict[str, float]
 
 
@@ -333,10 +335,10 @@ def build_dcliques_adjacency_matrix(
     # Inter edges assigned to specific node pairs (balanced)
     inter_edges, _ = assign_node_edges_balanced(cliques, interclique)
 
-    # Build adjacency matrix
+    # Build adjacency matrix as numpy array
     idx = {node_id: i for i, node_id in enumerate(node_order)}
     N = len(node_order)
-    A = [[0] * N for _ in range(N)]
+    A = np.zeros((N, N), dtype=int)
 
     def add(u: str, v: str) -> None:
         i, j = idx[u], idx[v]
@@ -349,12 +351,5 @@ def build_dcliques_adjacency_matrix(
         add(u, v)
     for u, v in inter_edges:
         add(u, v)
-
-    # Debug: print neighbor counts
-    print(f"DEBUG: Total intra edges: {len(intra_edges)}, inter edges: {len(inter_edges)}")
-    for i, node_id in enumerate(node_order):
-        neighbor_count = sum(A[i])
-        if neighbor_count > 5:
-            print(f"DEBUG: {node_id} has {neighbor_count} neighbors (UNEXPECTED!)")
 
     return A, cliques

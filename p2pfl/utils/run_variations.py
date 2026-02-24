@@ -201,12 +201,19 @@ def save_experiment_results(results_dir: Path, start_time: float) -> None:
             for exp, nodes in global_metrics_data.items():
                 for node, metrics in nodes.items():
                     for metric_name, values in metrics.items():
+                        # Debug: print the structure
+                        print(f"DEBUG: Processing metric {metric_name}, type={type(values)}, value={values}")
+                        
                         # Handle both list of tuples and single tuple
                         if isinstance(values, list):
-                            for round_num, value in values:
-                                flattened_global_metrics.append(
-                                    {"experiment": exp, "node": node, "metric": metric_name, "round": round_num, "value": value}
-                                )
+                            for item in values:
+                                if isinstance(item, tuple) and len(item) == 2:
+                                    round_num, value = item
+                                    flattened_global_metrics.append(
+                                        {"experiment": exp, "node": node, "metric": metric_name, "round": round_num, "value": value}
+                                    )
+                                else:
+                                    print(f"Warning: Unexpected item in list for metric {metric_name}: {type(item)}, {item}")
                         elif isinstance(values, tuple) and len(values) == 2:
                             # Single tuple case
                             round_num, value = values
@@ -214,7 +221,7 @@ def save_experiment_results(results_dir: Path, start_time: float) -> None:
                                 {"experiment": exp, "node": node, "metric": metric_name, "round": round_num, "value": value}
                             )
                         else:
-                            print(f"Warning: Unexpected format for metric {metric_name}: {type(values)}")
+                            print(f"Warning: Unexpected format for metric {metric_name}: {type(values)}, {values}")
 
             if flattened_global_metrics:
                 pandas_global_metrics = pd.DataFrame(flattened_global_metrics)
