@@ -275,25 +275,91 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
             )
         adjacency_matrix = TopologyFactory.generate_matrix(topology, len(nodes))
         
-        # If using D-Cliques topology with DSGDCliqueAvg, set clique members
+        # If using D-Cliques topology, build label-aware cliques and set clique members
         from p2pfl.learning.aggregators.d_sgd_clique_avg import DSGDCliqueAvg
         if topology in ["dclique_3", "dclique_4", "dclique_5"]:
             # Determine clique size
             clique_size = int(topology.split("_")[1])
-            num_cliques = (n + clique_size - 1) // clique_size
             
-            # Build clique membership map
-            for i, node in enumerate(nodes):
-                if isinstance(node.aggregator, DSGDCliqueAvg):
-                    # Determine which clique this node belongs to
-                    clique_idx = i // clique_size
-                    start = clique_idx * clique_size
-                    end = min(start + clique_size, n)
-                    
-                    # Get addresses of clique members
-                    clique_addrs = {nodes[j].addr for j in range(start, end)}
-                    node.aggregator.set_clique_members(clique_addrs)
-                    print(f"🔗 Node {i} ({node.addr}) in clique {clique_idx}: {clique_addrs}")
+            # Extract label distributions from partitions
+            from collections import Counter
+            node_labels = {}
+            for i, partition in enumerate(partitions):
+                # Get label distribution from partition
+                try:
+                    # Access the training data
+                    if hasattr(partition, '_data'):
+                        data = partition._data
+                        if hasattr(partition, '_train_split_name'):
+                            train_data = data[partition._train_split_name]
+                        else:
+                            train_data = data
+                        
+                        # Count labels
+                        if hasattr(train_data, 'targets'):
+                            labels = train_data.targets
+                        elif hasattr(train_data, 'labels'):
+                            labels = train_data.labels
+                        elif 'label' in train_data.column_names:
+                            labels = train_data['label']
+                        else:
+                            # Fallback: iterate through dataset
+                            labels = [item['label'] if isinstance(item, dict) else item[1] for item in train_data]
+                        
+                        label_counts = Counter(labels)
+                        node_labels[f"node_{i}"] = {str(k): float(v) for k, v in label_counts.items()}
+                except Exception as e:
+                    print(f"⚠️ Could not extract labels for node {i}: {e}")
+                    # Fallback to sequential assignment
+                    node_labels = None
+                    break
+            
+            # Build label-aware cliques if we have label information
+            if node_labels:
+                print(f"🔬 Building label-aware D-Cliques (clique_size={clique_size})...")
+                
+                # Build adjacency matrix with label-aware cliques
+                node_order = [f"node_{i}" for i in range(n)]
+                from p2pfl.utils.d_cliques_p2pfl import build_dcliques_adjacency_matrix
+                
+                adjacency_matrix, cliques = build_dcliques_adjacency_matrix(
+                    node_labels=node_labels,
+                    node_order=node_order,
+                    clique_size=clique_size,
+                    iterations=20000,
+                    seed=Settings.general.SEED,
+                    inter_mode="small_world",
+                    small_world_c=2
+                )
+                
+                # Create clique membership map
+                clique_map = {}
+                for clique_idx, clique_members in enumerate(cliques):
+                    for node_id in clique_members:
+                        clique_map[node_id] = clique_members
+                
+                print(f"✅ Built {len(cliques)} label-aware cliques")
+                
+                # Set clique members for DSGDCliqueAvg aggregators
+                for i, node in enumerate(nodes):
+                    if isinstance(node.aggregator, DSGDCliqueAvg):
+                        node_id = f"node_{i}"
+                        clique_members = clique_map[node_id]
+                        # Convert node IDs to addresses
+                        clique_addrs = {nodes[node_order.index(nid)].addr for nid in clique_members}
+                        node.aggregator.set_clique_members(clique_addrs)
+                        print(f"🔗 Node {i} ({node.addr}) in clique with {len(clique_members)} members")
+            else:
+                # Fallback to sequential assignment
+                print(f"⚠️ Using sequential clique assignment (no label information)")
+                num_cliques = (n + clique_size - 1) // clique_size
+                for i, node in enumerate(nodes):
+                    if isinstance(node.aggregator, DSGDCliqueAvg):
+                        clique_idx = i // clique_size
+                        start = clique_idx * clique_size
+                        end = min(start + clique_size, n)
+                        clique_addrs = {nodes[j].addr for j in range(start, end)}
+                        node.aggregator.set_clique_members(clique_addrs)
         
         TopologyFactory.connect_nodes(adjacency_matrix, nodes)
         wait_convergence(nodes, n - 1, only_direct=False, wait=60, debug=False)  # type: ignore

@@ -296,9 +296,15 @@ def build_dcliques_adjacency_matrix(
     seed: int | None = None,
     inter_mode: str = "small_world",
     small_world_c: int = 2,
-) -> List[List[int]]:
+) -> tuple[List[List[int]], List[Set[str]]]:
     """
-    Returns adjacency matrix (0/1) in the order of node_order (must match p2pfl nodes list order).
+    Returns adjacency matrix (0/1) in the order of node_order (must match p2pfl nodes list order)
+    and the list of cliques.
+    
+    Returns:
+        tuple: (adjacency_matrix, cliques)
+            - adjacency_matrix: 2D list of 0/1 values
+            - cliques: List of sets, each set contains node IDs in that clique
     """
     # Build cliques using ONLY node ids found in node_order (and node_labels)
     missing = [n for n in node_order if n not in node_labels]
@@ -345,4 +351,4 @@ def build_dcliques_adjacency_matrix(
     for u, v in inter_edges:
         add(u, v)
 
-    return A
+    return A, cliques
