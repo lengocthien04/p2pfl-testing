@@ -58,7 +58,7 @@ settings:
 
   heartbeat:
     period: 10
-    timeout: 600
+    timeout: 1800
     wait_convergence: 60
     exclude_beat_logs: true
 
@@ -68,12 +68,12 @@ settings:
     messages_per_period: 200
     amount_last_messages_saved: 500
     models_period: 1
-    models_per_round: 4
+    models_per_round: 12
     exit_on_x_equal_rounds: 100
 
   training:
-    vote_timeout: 60
-    aggregation_timeout: 1800
+    vote_timeout: 120
+    aggregation_timeout: 3600
     ray_actor_pool_size: 12
     neighbor_only_aggregation: true
 
