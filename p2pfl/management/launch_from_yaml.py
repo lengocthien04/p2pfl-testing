@@ -273,9 +273,8 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
                 f""""TTL less than the number of nodes ({Settings.gossip.TTL} < {n}).
                 Some messages will not be delivered depending on the topology."""
             )
-        adjacency_matrix = TopologyFactory.generate_matrix(topology, len(nodes))
         
-        # If using D-Cliques topology, build label-aware cliques and set clique members
+        # If using D-Cliques topology, build label-aware cliques and custom adjacency matrix
         from p2pfl.learning.aggregators.d_sgd_clique_avg import DSGDCliqueAvg
         if topology in ["dclique_3", "dclique_4", "dclique_5"]:
             # Determine clique size
@@ -364,9 +363,15 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
                         end = min(start + clique_size, n)
                         clique_addrs = {nodes[j].addr for j in range(start, end)}
                         node.aggregator.set_clique_members(clique_addrs)
+        else:
+            # For non-dclique topologies, use TopologyFactory
+            adjacency_matrix = TopologyFactory.generate_matrix(topology, len(nodes))
         
+        print(f"🔗 Connecting nodes with topology...")
         TopologyFactory.connect_nodes(adjacency_matrix, nodes)
+        print(f"✅ Nodes connected, waiting for convergence...")
         wait_convergence(nodes, n - 1, only_direct=False, wait=60, debug=False)  # type: ignore
+        print(f"✅ Convergence complete")
 
         # Additional connections
         additional_connections = network_config.get("additional_connections")
@@ -378,11 +383,14 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
         r = experiment_config.get("rounds")
         e = experiment_config.get("epochs")
         trainset_size = experiment_config.get("trainset_size")
+        print(f"🚀 Starting learning: {r} rounds, {e} epochs, trainset_size={trainset_size}")
         if r < 1:
             raise ValueError("Skipping training, amount of round is less than 1")
 
         # Start Learning
+        print(f"📡 Sending start learning command to node 0...")
         nodes[0].set_start_learning(rounds=r, epochs=e, trainset_size=trainset_size)
+        print(f"✅ Start learning command sent")
 
         # Wait and check
         # Get wait_timeout from experiment config (in minutes), default to 60 minutes (1 hour)
