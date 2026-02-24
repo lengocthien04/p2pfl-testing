@@ -65,9 +65,9 @@ settings:
   gossip:
     period: 1
     ttl: 30
-    messages_per_period: 500
+    messages_per_period: 1000
     amount_last_messages_saved: 500
-    models_period: 0.5
+    models_period: 0.1
     models_per_round: 24
     exit_on_x_equal_rounds: 100
 
