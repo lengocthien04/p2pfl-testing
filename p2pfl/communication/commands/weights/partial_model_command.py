@@ -109,8 +109,10 @@ class PartialModelCommand(Command):
                 self.stop()
 
             except Exception as e:
+                # Only log the error instead of stopping the entire node, because a
+                # transient model error should not kill the learning workflow running
+                # in another thread.
                 logger.error(self.state.addr, f"Unknown error adding model: {e}")
-                self.stop()
 
         else:
             logger.debug(self.state.addr, "Tried to add a model while learning is not running")
