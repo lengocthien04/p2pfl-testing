@@ -17,7 +17,7 @@ experiment:
   dataset:
     source: "huggingface"
     name: "p2pfl/MNIST"
-    batch_size: 128
+    batch_size: 64
     partitioning:
       package: "p2pfl.learning.dataset.partition_strategies"
       strategy: "DirichletPartitionStrategy"
@@ -28,10 +28,10 @@ experiment:
         self_balancing: true
 
   model:
-    package: "p2pfl.examples.mnist.model.mlp_pytorch"
+    package: "p2pfl.examples.mnist.model.mnist_linear_pytorch"
     model_build_fn: "model_build_fn"
     params:
-      lr_rate: 0.001
+      lr_rate: 0.1
 
   aggregator:
     package: "p2pfl.learning.aggregators.d_sgd_clique_avg"

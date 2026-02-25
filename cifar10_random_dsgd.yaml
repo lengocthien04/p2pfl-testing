@@ -4,7 +4,7 @@ network:
   package: "p2pfl.communication.protocols.protobuff.memory"
   protocol: "MemoryCommunicationProtocol"
   nodes: 24
-  topology: "random_max_3"
+  topology: "random_max_4"
 
 experiment:
   name: "cifar10_random_dsgd"
@@ -17,7 +17,7 @@ experiment:
   dataset:
     source: "huggingface"
     name: "p2pfl/CIFAR10"
-    batch_size: 20
+    batch_size: 64
     transforms:
       package: "p2pfl.examples.cifar10.transforms"
       function: "get_cifar10_transforms"
@@ -31,10 +31,10 @@ experiment:
         alpha: 0.1
 
   model:
-    package: "p2pfl.examples.cifar10.model.resnet_pytorch"
+    package: "p2pfl.examples.cifar10.model.cifar_convnet_pytorch"
     model_build_fn: "model_build_fn"
     params:
-      lr_rate: 0.002
+      lr_rate: 0.1
 
   aggregator:
     package: "p2pfl.learning.aggregators.d_sgd"
@@ -60,7 +60,7 @@ settings:
   gossip:
     period: 1
     ttl: 30  # Increased TTL for sparse topology (20 nodes, avg degree 5)
-    messages_per_period: 200
+    messages_per_period: 9999999
     amount_last_messages_saved: 1000
     models_period: 1
     models_per_round: 4
@@ -69,7 +69,7 @@ settings:
   training:
     vote_timeout: 60
     aggregation_timeout: 1800
-    ray_actor_pool_size: 10
+    ray_actor_pool_size: 6
     neighbor_only_aggregation: false  # Use TrainStage with temporary connections for YAML
 
 profiling:
