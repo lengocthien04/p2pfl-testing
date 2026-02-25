@@ -175,7 +175,6 @@ class Gossiper(threading.Thread, NodeComponent):
         model_fn: Callable[[str], tuple[Any, str, int, list[str]]],  # TODO: this can be simplified
         period: float,
         temporal_connection: bool,
-        on_send_success: Callable[[str, list[str]], None] | None = None,
     ) -> None:
         """
         Gossip model weights. This is a synchronous gossip. End when there are no more neighbors to gossip.
@@ -256,9 +255,6 @@ class Gossiper(threading.Thread, NodeComponent):
                 # Send
                 logger.debug(self.addr, f"🗣️ Gossiping model to {client.nei_addr}.")
                 client.send(model, temporal_connection=temporal_connection)
-                # Notify caller of successful send
-                if on_send_success is not None:
-                    on_send_success(client.nei_addr, model_hashes)
 
             # Sleep to allow periodicity
             sleep_time = max(0, period - (t - time.time()))

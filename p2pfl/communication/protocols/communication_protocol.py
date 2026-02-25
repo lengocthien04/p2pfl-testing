@@ -182,7 +182,6 @@ class CommunicationProtocol(ABC, NodeComponent):
         model_fn: Callable[[str], tuple[Any, str, int, list[str]]],
         period: float | None = None,
         create_connection: bool = False,
-        on_send_success: Callable[[str, list[str]], None] | None = None,
     ) -> None:
         """
         Gossip model weights.

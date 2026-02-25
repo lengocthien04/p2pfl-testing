@@ -149,18 +149,14 @@ class TrainStage(Stage):
             trainset won't receive the aggregation).
         """
 
-        # Cache for encoded models: key = frozenset of except_nodes, value = (model_msg, contributors) or None
-        _model_cache: dict[frozenset, tuple[Any, list[str]] | None] = {}
-        _cache_model_count: list[int] = [0]  # track aggregator model count to invalidate cache
+        # Cache for encoded models: key = frozenset of contributors, value = (model_msg, contributors)
+        _model_cache: dict[frozenset, tuple[Any, list[str]]] = {}
 
         # Anonymous functions
         def early_stopping_fn():
             return state.round is None
 
         def get_candidates_fn() -> list[str]:
-            # If this node already collected all models, stop gossiping
-            if aggregator._finish_aggregation_event.is_set():
-                return []
             candidates = set(state.train_set) - {state.addr}
             return [n for n in candidates if len(TrainStage.__get_remaining_nodes(n, state)) != 0]
 
@@ -177,12 +173,8 @@ class TrainStage(Stage):
         def model_fn(node: str) -> tuple[Any, str, int, list[str]]:
             if state.round is None:
                 raise Exception("Round not initialized.")
-            # Invalidate cache if aggregator received new models
-            current_count = len(aggregator.get_aggregated_models())
-            if current_count != _cache_model_count[0]:
-                _model_cache.clear()
-                _cache_model_count[0] = current_count
             except_nodes = TrainStage.__get_aggregated_models(node, state)
+            # Cache key: what the target already has determines the model we send
             cache_key = frozenset(except_nodes)
             if cache_key in _model_cache:
                 cached = _model_cache[cache_key]
@@ -197,6 +189,7 @@ class TrainStage(Stage):
                 _model_cache[cache_key] = None
                 return (None, PartialModelCommand.get_name(), state.round, [])
             contributors = model.get_contributors()
+            # Expensive: encode_parameters (pickle ~4MB) + build_weights (protobuf wrap)
             model_msg = communication_protocol.build_weights(
                 PartialModelCommand.get_name(),
                 state.round,
@@ -207,12 +200,6 @@ class TrainStage(Stage):
             _model_cache[cache_key] = (model_msg, contributors)
             return (model_msg, PartialModelCommand.get_name(), state.round, contributors)
 
-        def on_send_success(target: str, contributors: list[str]) -> None:
-            """Update models_aggregated after confirmed send."""
-            with state.models_aggregated_lock:
-                current = state.models_aggregated.get(target, [])
-                state.models_aggregated[target] = list(set(current + contributors))
-
         # Gossip
         communication_protocol.gossip_weights(
             early_stopping_fn,
@@ -220,7 +207,6 @@ class TrainStage(Stage):
             status_fn,
             model_fn,
             create_connection=True,
-            on_send_success=on_send_success,
         )
 
     @staticmethod
