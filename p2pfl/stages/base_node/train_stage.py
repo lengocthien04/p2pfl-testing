@@ -105,23 +105,7 @@ class TrainStage(Stage):
 
             # Set aggregated model
             agg_model = aggregator.wait_and_get_aggregation()
-            
-            # Log aggregated model parameters to verify all nodes have same model
-            agg_params = agg_model.get_parameters()
-            agg_mean = sum(p.mean() for p in agg_params) / len(agg_params)
-            agg_std = sum(p.std() for p in agg_params) / len(agg_params)
-            logger.info(state.addr, f"📦 Aggregated model stats: mean={agg_mean:.8f}, std={agg_std:.8f}")
-            
-            # Log current model before setting aggregated
-            old_params = learner.get_model().get_parameters()
-            old_mean = sum(p.mean() for p in old_params) / len(old_params)
-            
             learner.set_model(agg_model)
-            
-            # Verify model was actually updated
-            new_params = learner.get_model().get_parameters()
-            new_mean = sum(p.mean() for p in new_params) / len(new_params)
-            logger.info(state.addr, f"🔄 Model updated: old={old_mean:.8f}, new={new_mean:.8f}, changed={abs(new_mean-old_mean):.8f}")
 
             # Share that aggregation is done
             communication_protocol.broadcast(communication_protocol.build_msg(ModelsReadyCommand.get_name(), [], round=state.round))

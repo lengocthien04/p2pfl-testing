@@ -46,7 +46,7 @@ settings:
     log_level: "INFO"
     grpc_timeout: 60
     disable_ray: false
-    resource_monitor_period: 10
+    resource_monitor_period: 300
 
   SSL:
     use_ssl: false

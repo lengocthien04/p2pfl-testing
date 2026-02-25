@@ -18,9 +18,9 @@ experiment:
     source: "huggingface"
     name: "p2pfl/CIFAR10"
     batch_size: 20
-    num_workers: 4
-    pin_memory: true
-    persistent_workers: true
+    num_workers: 2
+    pin_memory: false
+    persistent_workers: false
     transforms:
       package: "p2pfl.examples.cifar10.transforms"
       function: "get_cifar10_transforms"
@@ -51,7 +51,7 @@ settings:
     log_level: "INFO"
     grpc_timeout: 60
     disable_ray: false
-    resource_monitor_period: 10
+    resource_monitor_period: 300
 
   SSL:
     use_ssl: false
@@ -79,5 +79,5 @@ settings:
 
 profiling:
   enabled: false
-  measure_time: true
+  measure_time: false
   output_dir: "profile/cifar10_dclique_cliqueavg"
