@@ -112,16 +112,20 @@ class SuperActorPool(ActorPool):
             # Initialize ActorPool
             num_actors = Settings.training.RAY_ACTOR_POOL_SIZE if amount_actors is None else amount_actors
             
-            # Limit actors based on GPU availability
-            # Ray requires minimum 0.1 GPU per actor
+            # Limit actors based on GPU availability.
+            # Lightning training is not safe/stable when many Ray actors share one GPU
+            # with tiny fractional allocations, so cap to one actor per visible GPU.
             cluster_resources = ray.cluster_resources()
             num_gpus = cluster_resources.get("GPU", 0)
             
             if num_gpus > 0:
-                # Maximum actors we can create with 0.1 GPU each
-                max_actors_with_gpu = int(num_gpus / 0.1)
+                # Maximum one training actor per GPU for stability
+                max_actors_with_gpu = int(num_gpus)
                 if num_actors > max_actors_with_gpu:
-                    logger.info("ActorPool", f"Requested {num_actors} actors but only {max_actors_with_gpu} can fit with 0.1 GPU each. Limiting to {max_actors_with_gpu}.")
+                    logger.info(
+                        "ActorPool",
+                        f"Requested {num_actors} actors but limiting to {max_actors_with_gpu} (1 actor per GPU for CUDA stability).",
+                    )
                     num_actors = max_actors_with_gpu
             
             # Calculate GPU resources per actor
@@ -162,10 +166,14 @@ class SuperActorPool(ActorPool):
             logger.info("ActorPool", "No GPUs detected. Actors will run on CPU only.")
             return 0
 
-        # Always allocate 0.1 GPU per actor (maximum 10 actors per GPU)
-        gpu_per_actor = 0.1
+        # Use one full GPU per actor to avoid CUDA allocator/cublas workspace
+        # corruption seen with heavily shared fractional assignments.
+        gpu_per_actor = 1.0
 
-        logger.info("ActorPool", f"Ray cluster has {num_gpus} GPU(s), allocating {gpu_per_actor:.2f} GPU per actor (max {int(num_gpus / gpu_per_actor)} actors)")
+        logger.info(
+            "ActorPool",
+            f"Ray cluster has {num_gpus} GPU(s), allocating {gpu_per_actor:.2f} GPU per actor (max {int(num_gpus / gpu_per_actor)} actors)",
+        )
 
         return gpu_per_actor
 
@@ -177,11 +185,10 @@ class SuperActorPool(ActorPool):
             New actor instance.
 
         """
-        # Create actor with GPU resources if available
-        # Use 0.25 CPU per actor to allow more actors on limited CPU systems
-        # Ray allows over-subscription when actors are idle
+        # Create actor with GPU resources if available.
+        # With GPU, use a full CPU slot to avoid over-subscription during trainer setup.
         if hasattr(self, "gpu_per_actor") and self.gpu_per_actor > 0:
-            return VirtualLearnerActor.options(num_gpus=self.gpu_per_actor, num_cpus=0.25).remote()  # type: ignore
+            return VirtualLearnerActor.options(num_gpus=self.gpu_per_actor, num_cpus=1).remote()  # type: ignore
         else:
             return VirtualLearnerActor.options(num_cpus=0.25).remote()  # type: ignore
 
