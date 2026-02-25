@@ -52,7 +52,7 @@ settings:
   heartbeat:
     period: 10
     timeout: 600
-    wait_convergence: 180
+    wait_convergence: 999
     exclude_beat_logs: true
 
   gossip:
