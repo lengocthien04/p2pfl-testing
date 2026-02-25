@@ -12,6 +12,7 @@ import numpy as np
 
 from p2pfl.learning.aggregators.aggregator import Aggregator, NoModelsToAggregateError
 from p2pfl.learning.frameworks.p2pfl_model import P2PFLModel
+from p2pfl.management.logger import logger
 
 
 class DSGD(Aggregator):
@@ -54,22 +55,15 @@ class DSGD(Aggregator):
             NoModelsToAggregateError: if no models exist.
             ValueError: if weights invalid.
         """
-        # Filter models if neighbor_filter is set
-        if hasattr(self, 'neighbor_filter') and self.neighbor_filter is not None:
-            filtered_models = []
-            for m in models:
-                # Check if any contributor is in the neighbor filter
-                if any(c in self.neighbor_filter for c in m.get_contributors()):
-                    filtered_models.append(m)
-            models = filtered_models
-        
+        models = self._filter_by_neighbors(models)
+
         if len(models) == 0:
             raise NoModelsToAggregateError(f"({self.addr}) Trying to aggregate models when there is no models")
+        template_model = self._get_template_model(models)
 
         k = len(models)
-        
+
         # Log how many models are being aggregated
-        from p2pfl.management.logger import logger
         contributors_list = [m.get_contributors() for m in models]
         logger.info(self.addr, f"🔢 Aggregating {k} models from: {contributors_list}")
 
@@ -103,4 +97,4 @@ class DSGD(Aggregator):
         # Keep sample metadata consistent with FedAvg style (not used for mixing here)
         total_samples = sum([m.get_num_samples() for m in models])
 
-        return models[0].build_copy(params=accum, num_samples=total_samples, contributors=contributors)
+        return template_model.build_copy(params=accum, num_samples=total_samples, contributors=contributors)

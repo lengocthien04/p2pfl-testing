@@ -47,6 +47,7 @@ class Aggregator(NodeComponent):
         """Initialize the aggregator."""
         self.__train_set: list[str] = []  # TODO: Remove the trainset from the state
         self.__models: list[P2PFLModel] = []
+        self.neighbor_filter: set[str] | None = None
 
         # Initialize instance's partial_aggregation based on the class's support
         self.partial_aggregation: bool = self.__class__.SUPPORTS_PARTIAL_AGGREGATION
@@ -62,9 +63,6 @@ class Aggregator(NodeComponent):
         self.__agg_lock = threading.Lock()
         self._finish_aggregation_event = threading.Event()
         self._finish_aggregation_event.set()
-
-        # Unhandled models
-        self.__unhandled_models: list[P2PFLModel] = []
 
     def aggregate(self, models: list[P2PFLModel]) -> P2PFLModel:
         """
@@ -103,17 +101,12 @@ class Aggregator(NodeComponent):
         # Start new aggregation
         self.__train_set = nodes_to_aggregate
         self._finish_aggregation_event.clear()
-        for m in self.__unhandled_models:
-            self.add_model(m)
-            # NOTE: Don´t need to send message indicating this aggregations. Self aggregation will be sufficient to notify the network.
-        self.__unhandled_models = []
 
     def clear(self) -> None:
         """Clear the aggregation (remove trainset and release locks)."""
         with self.__agg_lock:
             self.__train_set = []
             self.__models = []
-            self.__unhandled_models = []
             self._finish_aggregation_event.set()
 
     def get_aggregated_models(self) -> list[str]:
@@ -143,7 +136,6 @@ class Aggregator(NodeComponent):
         # Verify that contributors are not empty
         if model.get_contributors() == []:
             logger.debug(self.addr, "Received a model without a list of contributors.")
-            self.__agg_lock.release()
             return []
 
         # Lock
@@ -189,8 +181,9 @@ class Aggregator(NodeComponent):
                     f"🚫 Can't add a model from a node ({model.get_contributors()}) that is not in the training set.",
                 )
         else:
-            logger.debug(self.addr, "🚫 Received a model when is not needed. Saving a iteration to affor bandwith.")
-            self.__unhandled_models.append(model)
+            # Aggregation for this round is already complete. Drop redundant models to avoid
+            # unbounded memory growth under aggressive gossip settings.
+            logger.debug(self.addr, "🚫 Received a model when it is not needed. Dropping to save memory.")
 
         # Release and return
         self.__agg_lock.release()
@@ -242,6 +235,38 @@ class Aggregator(NodeComponent):
             agg_models += m.get_contributors()
         missing_models = set(self.__train_set) - set(agg_models)
         return missing_models
+
+    def _filter_by_neighbors(self, models: list[P2PFLModel]) -> list[P2PFLModel]:
+        """
+        Filter incoming models using the optional neighbor filter.
+
+        Args:
+            models: Candidate models to aggregate.
+
+        Returns:
+            Models whose contributors intersect with ``neighbor_filter``.
+        """
+        if self.neighbor_filter is None:
+            return models
+        return [m for m in models if any(c in self.neighbor_filter for c in m.get_contributors())]
+
+    def _get_template_model(self, models: list[P2PFLModel]) -> P2PFLModel:
+        """
+        Get a model instance capable of building aggregated model copies.
+
+        Args:
+            models: Models considered for aggregation.
+
+        Returns:
+            First model that provides ``build_copy``.
+
+        Raises:
+            NoModelsToAggregateError: If no such model exists.
+        """
+        template_model = next((m for m in models if hasattr(m, "build_copy")), None)
+        if template_model is None:
+            raise NoModelsToAggregateError(f"({self.addr}) No base model with build_copy available for aggregation output")
+        return template_model
 
     def __get_partial_aggregation(self, except_nodes: list[str]) -> P2PFLModel:
         """

@@ -18,9 +18,9 @@ experiment:
     source: "huggingface"
     name: "p2pfl/CIFAR10"
     batch_size: 20
-    num_workers: 4
-    pin_memory: true
-    persistent_workers: true
+    num_workers: 1
+    pin_memory: false
+    persistent_workers: false
     transforms:
       package: "p2pfl.examples.cifar10.transforms"
       function: "get_cifar10_transforms"
@@ -38,6 +38,10 @@ experiment:
     model_build_fn: "model_build_fn"
     params:
       lr_rate: 0.002
+    compression:
+      ptq:
+        dtype: "float16"
+      zlib: {}
 
   aggregator:
     package: "p2pfl.learning.aggregators.d_sgd_clique_avg"
@@ -50,7 +54,7 @@ settings:
   general:
     log_level: "INFO"
     grpc_timeout: 60
-    disable_ray: false
+    disable_ray: true
     resource_monitor_period: 10
 
   SSL:
@@ -65,16 +69,16 @@ settings:
   gossip:
     period: 0.1
     ttl: 30
-    messages_per_period: 2000
+    messages_per_period: 400
     amount_last_messages_saved: 500
-    models_period: 0.1
-    models_per_round: 20
-    exit_on_x_equal_rounds: 200
+    models_period: 0.5
+    models_per_round: 4
+    exit_on_x_equal_rounds: 30
 
   training:
     vote_timeout: 120
     aggregation_timeout: 3600
-    ray_actor_pool_size: 20
+    ray_actor_pool_size: 4
     neighbor_only_aggregation: true
 
 profiling:

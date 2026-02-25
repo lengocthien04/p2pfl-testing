@@ -106,6 +106,7 @@ class P2PFLDataset:
         test_split_name: str = "test",
         batch_size: int = 1,
         dataset_name: str | None = None,
+        dataloader_kwargs: dict[str, Any] | None = None,
     ):
         """
         Initialize the P2PFLDataset object.
@@ -123,6 +124,7 @@ class P2PFLDataset:
         self._test_split_name = test_split_name
         self.batch_size = batch_size
         self.dataset_name = dataset_name
+        self.dataloader_kwargs = dict(dataloader_kwargs) if dataloader_kwargs is not None else {}
 
     def get(self, idx, train: bool = True) -> dict[str, Any]:
         """
@@ -171,6 +173,16 @@ class P2PFLDataset:
 
         """
         self.batch_size = batch_size
+
+    def set_dataloader_kwargs(self, dataloader_kwargs: dict[str, Any]) -> None:
+        """
+        Set DataLoader keyword arguments used by framework export strategies.
+
+        Args:
+            dataloader_kwargs: DataLoader kwargs such as num_workers/pin_memory.
+
+        """
+        self.dataloader_kwargs = dict(dataloader_kwargs)
 
     def generate_train_test_split(self, **kwargs) -> None:
         """
@@ -253,6 +265,7 @@ class P2PFLDataset:
                 test_split_name=self._test_split_name,
                 batch_size=self.batch_size,
                 dataset_name=self.dataset_name,
+                dataloader_kwargs=self.dataloader_kwargs,
             )
             for i in range(num_partitions)
         ]
@@ -281,7 +294,8 @@ class P2PFLDataset:
 
         # Export
         split = self._train_split_name if train else self._test_split_name
-        return strategy.export(self._data[split], batch_size=self.batch_size, **kwargs)
+        export_kwargs = {**self.dataloader_kwargs, **kwargs}
+        return strategy.export(self._data[split], batch_size=self.batch_size, **export_kwargs)
 
     @classmethod
     def from_csv(cls, data_files: DataFilesType, **kwargs) -> "P2PFLDataset":

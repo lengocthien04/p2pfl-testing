@@ -97,12 +97,23 @@ class PyTorchExportStrategy(DataExportStrategy):
         """
         if not batch_size:
             batch_size = Settings.training.DEFAULT_BATCH_SIZE
+        num_workers = int(kwargs.pop("num_workers", num_workers))
+        if num_workers <= 0:
+            num_workers = 0
+            # These options are only valid with multiprocessing workers.
+            kwargs.pop("persistent_workers", None)
+            kwargs.pop("prefetch_factor", None)
 
         # Check if data is already in torch format or has transforms applied
         # If format type is None, it means transforms might be handling conversion
         if hasattr(data, "format") and data.format["type"] is not None:
             # No format applied, likely transforms are handling conversion
-            return DataLoader(data, batch_size=batch_size, num_workers=num_workers)
+            return DataLoader(data, batch_size=batch_size, num_workers=num_workers, **kwargs)
         else:
             # Apply torch format
-            return DataLoader(data.with_format(type="torch", output_all_columns=True), batch_size=batch_size, num_workers=num_workers)
+            return DataLoader(
+                data.with_format(type="torch", output_all_columns=True),
+                batch_size=batch_size,
+                num_workers=num_workers,
+                **kwargs,
+            )

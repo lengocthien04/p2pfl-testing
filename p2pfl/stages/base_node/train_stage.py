@@ -105,23 +105,16 @@ class TrainStage(Stage):
 
             # Set aggregated model
             agg_model = aggregator.wait_and_get_aggregation()
-            
-            # Log aggregated model parameters to verify all nodes have same model
-            agg_params = agg_model.get_parameters()
-            agg_mean = sum(p.mean() for p in agg_params) / len(agg_params)
-            agg_std = sum(p.std() for p in agg_params) / len(agg_params)
-            logger.info(state.addr, f"📦 Aggregated model stats: mean={agg_mean:.8f}, std={agg_std:.8f}")
-            
-            # Log current model before setting aggregated
-            old_params = learner.get_model().get_parameters()
-            old_mean = sum(p.mean() for p in old_params) / len(old_params)
-            
+            debug_enabled = logger.get_level_name(logger.get_level()) == "DEBUG"
+            if debug_enabled:
+                old_params = learner.get_model().get_parameters()
+                old_mean = sum(p.mean() for p in old_params) / len(old_params)
+
             learner.set_model(agg_model)
-            
-            # Verify model was actually updated
-            new_params = learner.get_model().get_parameters()
-            new_mean = sum(p.mean() for p in new_params) / len(new_params)
-            logger.info(state.addr, f"🔄 Model updated: old={old_mean:.8f}, new={new_mean:.8f}, changed={abs(new_mean-old_mean):.8f}")
+            if debug_enabled:
+                new_params = learner.get_model().get_parameters()
+                new_mean = sum(p.mean() for p in new_params) / len(new_params)
+                logger.debug(state.addr, f"🔄 Model updated: old={old_mean:.8f}, new={new_mean:.8f}, changed={abs(new_mean-old_mean):.8f}")
 
             # Share that aggregation is done
             communication_protocol.broadcast(communication_protocol.build_msg(ModelsReadyCommand.get_name(), [], round=state.round))
@@ -182,6 +175,8 @@ class TrainStage(Stage):
                 if (n in state.train_set)
             ]
 
+        encoded_cache: dict[tuple[tuple[str, ...], int], bytes] = {}
+
         def model_fn(node: str) -> tuple[Any, str, int, list[str]]:
             if state.round is None:
                 raise Exception("Round not initialized.")
@@ -195,18 +190,25 @@ class TrainStage(Stage):
                     state.round,
                     [],
                 )
+            contributors = model.get_contributors()
+            num_samples = model.get_num_samples()
+            cache_key = (tuple(sorted(contributors)), num_samples)
+            encoded_model = encoded_cache.get(cache_key)
+            if encoded_model is None:
+                encoded_model = model.encode_parameters()
+                encoded_cache[cache_key] = encoded_model
             model_msg = communication_protocol.build_weights(
                 PartialModelCommand.get_name(),
                 state.round,
-                model.encode_parameters(),
-                model.get_contributors(),
-                model.get_num_samples(),
+                encoded_model,
+                contributors,
+                num_samples,
             )
             return (
                 model_msg,
                 PartialModelCommand.get_name(),
                 state.round,
-                model.get_contributors(),
+                contributors,
             )
 
         # Gossip

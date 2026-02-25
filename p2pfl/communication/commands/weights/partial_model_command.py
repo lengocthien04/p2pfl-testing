@@ -26,6 +26,7 @@ from p2pfl.communication.commands.message.pre_send_model_command import PreSendM
 from p2pfl.communication.protocols.communication_protocol import CommunicationProtocol
 from p2pfl.learning.aggregators.aggregator import Aggregator
 from p2pfl.learning.frameworks.exceptions import DecodingParamsError, ModelNotMatchingError
+from p2pfl.learning.frameworks.lightweight_model import LightweightModelSnapshot
 from p2pfl.learning.frameworks.learner import Learner
 from p2pfl.management.logger import logger
 from p2pfl.node_state import NodeState
@@ -83,8 +84,15 @@ class PartialModelCommand(Command):
                 return
 
             try:
-                # Add model to aggregator
-                model = self.laerner.get_model().build_copy(params=weights, num_samples=num_samples, contributors=list(contributors))
+                # Decode to a lightweight snapshot to avoid deep-copying full framework models on every receive.
+                decoded_params, decoded_info = self.laerner.get_model().decode_parameters(weights)
+                model = LightweightModelSnapshot(
+                    params=decoded_params,
+                    num_samples=num_samples,
+                    contributors=list(contributors),
+                    additional_info=decoded_info,
+                    encoded_params=weights,
+                )
                 models_added = self.aggregator.add_model(model)
                 if models_added != []:
                     # Communicate Aggregation

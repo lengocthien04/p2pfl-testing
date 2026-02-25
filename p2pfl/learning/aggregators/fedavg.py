@@ -54,6 +54,7 @@ class FedAvg(Aggregator):
         # Check if there are models to aggregate
         if len(models) == 0:
             raise NoModelsToAggregateError(f"({self.addr}) Trying to aggregate models when there is no models")
+        template_model = self._get_template_model(models)
 
         # Total Samples
         total_samples = sum([m.get_num_samples() for m in models])
@@ -76,4 +77,4 @@ class FedAvg(Aggregator):
             contributors = contributors + m.get_contributors()
 
         # Return an aggregated p2pfl model
-        return models[0].build_copy(params=accum, num_samples=total_samples, contributors=contributors)
+        return template_model.build_copy(params=accum, num_samples=total_samples, contributors=contributors)

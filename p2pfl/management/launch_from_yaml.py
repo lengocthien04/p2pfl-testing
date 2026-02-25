@@ -145,6 +145,11 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
 
     # Batch size
     dataset.set_batch_size(dataset_config.get("batch_size", 1))
+    # Optional DataLoader knobs (PyTorch). Keep generic so they can be consumed by export strategies.
+    dataloader_keys = ("num_workers", "pin_memory", "persistent_workers", "prefetch_factor")
+    dataloader_kwargs = {k: dataset_config[k] for k in dataloader_keys if k in dataset_config}
+    if dataloader_kwargs:
+        dataset.set_dataloader_kwargs(dataloader_kwargs)
 
     # Partitioning (do this BEFORE applying transforms)
     partitioning_config = dataset_config.get("partitioning", {})

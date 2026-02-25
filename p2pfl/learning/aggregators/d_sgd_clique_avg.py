@@ -12,6 +12,7 @@ import numpy as np
 
 from p2pfl.learning.aggregators.aggregator import Aggregator, NoModelsToAggregateError
 from p2pfl.learning.frameworks.p2pfl_model import P2PFLModel
+from p2pfl.management.logger import logger
 
 
 class DSGDCliqueAvg(Aggregator):
@@ -89,15 +90,8 @@ class DSGDCliqueAvg(Aggregator):
         Raises:
             NoModelsToAggregateError: if no models exist
         """
-        # Filter models if neighbor_filter is set (like DSGD does)
-        if hasattr(self, 'neighbor_filter') and self.neighbor_filter is not None:
-            filtered_models = []
-            for m in models:
-                # Check if any contributor is in the neighbor filter
-                if any(c in self.neighbor_filter for c in m.get_contributors()):
-                    filtered_models.append(m)
-            models = filtered_models
-        
+        models = self._filter_by_neighbors(models)
+
         if len(models) == 0:
             raise NoModelsToAggregateError(
                 f"({self.addr}) Trying to aggregate models when there is no models"
@@ -116,7 +110,6 @@ class DSGDCliqueAvg(Aggregator):
             if is_clique_member:
                 clique_models.append(model)
 
-        from p2pfl.management.logger import logger
         logger.info(self.addr, f"🔢 Clique averaging: {len(clique_models)} clique models, {len(all_neighbor_models)} total neighbor models")
 
         # Stage 1: Average clique models to get single clique-averaged model
@@ -137,6 +130,7 @@ class DSGDCliqueAvg(Aggregator):
     def _uniform_average(self, models: list[P2PFLModel]) -> P2PFLModel:
         """Uniform averaging of models (1/K weight for each)."""
         k = len(models)
+        template_model = self._get_template_model(models)
         first_params = models[0].get_parameters()
         # Use float64 arrays to avoid casting issues
         accum = [np.zeros_like(layer, dtype=np.float64) for layer in first_params]
@@ -158,7 +152,7 @@ class DSGDCliqueAvg(Aggregator):
         
         total_samples = sum([m.get_num_samples() for m in models])
         
-        return models[0].build_copy(
+        return template_model.build_copy(
             params=result_params,
             num_samples=total_samples,
             contributors=contributors
