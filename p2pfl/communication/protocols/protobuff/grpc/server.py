@@ -56,7 +56,7 @@ class GrpcServer(ProtobuffServer):
         # Server
         maxMsgLength = 1024 * 1024 * 1024
         self.__server = grpc.server(
-            futures.ThreadPoolExecutor(max_workers=2),
+            futures.ThreadPoolExecutor(max_workers=20),
             options=[
                 ("grpc.max_send_message_length", maxMsgLength),
                 ("grpc.max_receive_message_length", maxMsgLength),

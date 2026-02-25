@@ -131,6 +131,7 @@ class LightningLearner(Learner):
         try:
             if self.epochs > 0:
                 self.__trainer = Trainer(
+                    accelerator="auto",
                     enable_checkpointing=False,
                     enable_model_summary=False,
                     logger=False,
