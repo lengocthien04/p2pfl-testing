@@ -130,14 +130,9 @@ class LightningLearner(Learner):
         """
         try:
             if self.epochs > 0:
-                self.__trainer = Trainer(
-                    accelerator="cpu",
-                    enable_checkpointing=False,
-                    enable_model_summary=False,
-                    logger=False,
-                )
+                self.__trainer = Trainer()
                 pt_model, pt_data = self.__get_pt_model_data(train=False)
-                results = self.__trainer.test(pt_model, pt_data, verbose=False)[0]
+                results = self.__trainer.test(pt_model, pt_data, verbose=True)[0]
                 self.__trainer = None
                 # Log metrics
                 for k, v in results.items():
