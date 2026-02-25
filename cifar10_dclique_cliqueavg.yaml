@@ -65,7 +65,7 @@ settings:
   gossip:
     period: 0.1
     ttl: 30
-    messages_per_period: 2000
+    messages_per_period: 9999999
     amount_last_messages_saved: 500
     models_period: 0.1
     models_per_round: 24
@@ -74,7 +74,7 @@ settings:
   training:
     vote_timeout: 120
     aggregation_timeout: 3600
-    ray_actor_pool_size: 10                                                                     
+    ray_actor_pool_size: 24
     neighbor_only_aggregation: true
 
 profiling:

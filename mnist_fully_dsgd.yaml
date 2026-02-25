@@ -61,13 +61,13 @@ settings:
     messages_per_period: 9999999
     amount_last_messages_saved: 1000
     models_period: 0.5
-    models_per_round: 10
+    models_per_round: 24
     exit_on_x_equal_rounds: 100
 
   training:
     vote_timeout: 60
     aggregation_timeout: 1800
-    ray_actor_pool_size: 10
+    ray_actor_pool_size: 24
     neighbor_only_aggregation: false
 
 profiling:
