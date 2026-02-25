@@ -1,0 +1,83 @@
+description: "CIFAR-10 D-SGD with D-Cliques topology (clique size 4) and clique averaging - 20 nodes"
+
+network:
+  package: "p2pfl.communication.protocols.protobuff.memory"
+  protocol: "MemoryCommunicationProtocol"
+  nodes: 20
+  topology: "dclique_4"
+
+experiment:
+  name: "cifar10_dclique_cliqueavg_20node"
+  rounds: 100
+  epochs: 1
+  trainset_size: 20
+  seed: 666
+  wait_timeout: 300
+
+  dataset:
+    source: "huggingface"
+    name: "p2pfl/CIFAR10"
+    batch_size: 20
+    num_workers: 4
+    pin_memory: true
+    persistent_workers: true
+    transforms:
+      package: "p2pfl.examples.cifar10.transforms"
+      function: "get_cifar10_transforms"
+      params: {}
+    partitioning:
+      package: "p2pfl.learning.dataset.partition_strategies"
+      strategy: "DirichletPartitionStrategy"
+      reduced_dataset: false
+      reduction_factor: 1
+      params:
+        alpha: 0.1
+
+  model:
+    package: "p2pfl.examples.cifar10.model.resnet_pytorch"
+    model_build_fn: "model_build_fn"
+    params:
+      lr_rate: 0.002
+
+  aggregator:
+    package: "p2pfl.learning.aggregators.d_sgd_clique_avg"
+    aggregator: "DSGDCliqueAvg"
+    params:
+      disable_partial_aggregation: true
+      clique_weight_ratio: 2.0
+
+settings:
+  general:
+    log_level: "INFO"
+    grpc_timeout: 60
+    disable_ray: false
+    resource_monitor_period: 10
+
+  SSL:
+    use_ssl: false
+
+  heartbeat:
+    period: 10
+    timeout: 1800
+    wait_convergence: 60
+    exclude_beat_logs: true
+
+  gossip:
+    period: 0.1
+    ttl: 30
+    messages_per_period: 2000
+    amount_last_messages_saved: 500
+    models_period: 0.1
+    models_per_round: 20
+    exit_on_x_equal_rounds: 200
+
+  training:
+    vote_timeout: 120
+    aggregation_timeout: 3600
+    ray_actor_pool_size: 20
+    neighbor_only_aggregation: true
+
+profiling:
+  enabled: false
+  measure_time: true
+  output_dir: "profile/cifar10_dclique_cliqueavg_20node"
