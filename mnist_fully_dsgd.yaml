@@ -3,14 +3,14 @@ description: "MNIST D-SGD with fully connected topology and high non-IID data"
 network:
   package: "p2pfl.communication.protocols.protobuff.memory"
   protocol: "MemoryCommunicationProtocol"
-  nodes: 15
+  nodes: 24
   topology: "fully_connected"
 
 experiment:
   name: "mnist_fully_dsgd"
   rounds: 100
   epochs: 1
-  trainset_size: 15
+  trainset_size: 24
   seed: 666
   wait_timeout: 300
 
