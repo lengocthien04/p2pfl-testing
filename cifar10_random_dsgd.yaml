@@ -3,14 +3,14 @@ description: "CIFAR-10 D-SGD with random topology (avg degree 4) and high non-II
 network:
   package: "p2pfl.communication.protocols.protobuff.memory"
   protocol: "MemoryCommunicationProtocol"
-  nodes: 24
-  topology: "random_max_4"
+  nodes: 15
+  topology: "random_max_3"
 
 experiment:
   name: "cifar10_random_dsgd"
   rounds: 100
   epochs: 1
-  trainset_size: 24
+  trainset_size: 15
   seed: 666
   wait_timeout: 300
 
@@ -69,7 +69,7 @@ settings:
   training:
     vote_timeout: 60
     aggregation_timeout: 1800
-    ray_actor_pool_size: 12
+    ray_actor_pool_size: 10
     neighbor_only_aggregation: false  # Use TrainStage with temporary connections for YAML
 
 profiling:

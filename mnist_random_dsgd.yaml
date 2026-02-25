@@ -3,14 +3,14 @@ description: "MNIST D-SGD with random max-degree topology and high non-IID data"
 network:
   package: "p2pfl.communication.protocols.protobuff.memory"
   protocol: "MemoryCommunicationProtocol"
-  nodes: 24
-  topology: "random_max_4" # Random topology with max degree 3
+  nodes: 15
+  topology: "random_max_3" # Random topology with max degree 3
 
 experiment:
   name: "mnist_random_dsgd"
   rounds: 100
   epochs: 1
-  trainset_size: 24
+  trainset_size: 15
   seed: 666
   wait_timeout: 300
 
@@ -67,7 +67,7 @@ settings:
   training:
     vote_timeout: 60
     aggregation_timeout: 1800
-    ray_actor_pool_size: 12
+    ray_actor_pool_size: 10
     neighbor_only_aggregation: true # Aggregate from neighbors only (D-SGD on sparse topology)
 
 profiling:
