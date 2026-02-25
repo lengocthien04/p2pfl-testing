@@ -93,6 +93,12 @@ class StartLearningStage(Stage):
 
         # Vote
         return StageFactory.get_stage("VoteTrainSetStage")
+
+    @staticmethod
+    def __gossip_model(
+        state: NodeState,
+        communication_protocol: CommunicationProtocol,
+        learner: Learner,
     ) -> None:
         def early_stopping_fn():
             return state.round is None
