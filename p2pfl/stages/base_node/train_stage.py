@@ -161,14 +161,21 @@ class TrainStage(Stage):
             return [n for n in candidates if len(TrainStage.__get_remaining_nodes(n, state)) != 0]
 
         def status_fn() -> Any:
-            return [
-                (
-                    n,
-                    TrainStage.__get_aggregated_models(n, state),
-                )  # reemplazar por Aggregator - borrarlo de node
-                for n in communication_protocol.get_neighbors(only_direct=False)
-                if (n in state.train_set)
-            ]
+            # Include aggregator's actual model count so status changes when WE receive models
+            # (even if models_aggregated from broadcasts doesn't change).
+            # This prevents premature gossip exit via exit_on_x_equal_rounds.
+            own_model_count = len(aggregator.get_aggregated_models())
+            return (
+                own_model_count,
+                [
+                    (
+                        n,
+                        TrainStage.__get_aggregated_models(n, state),
+                    )
+                    for n in communication_protocol.get_neighbors(only_direct=False)
+                    if (n in state.train_set)
+                ],
+            )
 
         def model_fn(node: str) -> tuple[Any, str, int, list[str]]:
             if state.round is None:

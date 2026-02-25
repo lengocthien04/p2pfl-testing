@@ -51,7 +51,8 @@ class ModelsReadyCommand(Command):
         ########################################################
         if self.state.round is not None:
             if round in [self.state.round - 1, self.state.round]:
-                self.state.nei_status[source] = self.state.round
+                # Use the sender's round, not our own — prevents inflating nei_status
+                self.state.nei_status[source] = round
             else:
                 # Ignored
                 logger.error(
