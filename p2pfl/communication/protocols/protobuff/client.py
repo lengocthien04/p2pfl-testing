@@ -89,7 +89,7 @@ class ProtobuffClient(ABC):
         """
         # Log
         package_type = "message" if not msg.HasField("weights") else "weights"
-        package_size = len(msg.SerializeToString())
+        package_size = msg.ByteSize()
         round_num = msg.round if msg.round >= 0 else None  # Pass None for negative rounds, the logger will handle it
 
         logger.log_communication(

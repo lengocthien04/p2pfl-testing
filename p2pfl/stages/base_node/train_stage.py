@@ -90,15 +90,16 @@ class TrainStage(Stage):
             # Aggregate Model
             models_added = aggregator.add_model(learner.get_model())
 
-            # send model added msg ---->> redundant (a node always owns its model)
-            # TODO: print("Broadcast redundante")
-            communication_protocol.broadcast(
-                communication_protocol.build_msg(
-                    ModelsAggregatedCommand.get_name(),
-                    models_added,
-                    round=state.round,
-                )
+            # send model added msg to ALL nodes (not just direct neighbors)
+            agg_msg = communication_protocol.build_msg(
+                ModelsAggregatedCommand.get_name(),
+                models_added,
+                round=state.round,
             )
+            all_neis = communication_protocol.get_neighbors(only_direct=False)
+            for addr, (client, _) in all_neis.items():
+                if addr != state.addr:
+                    client.send(agg_msg, temporal_connection=True)
             TrainStage.__gossip_model_aggregation(state, communication_protocol, aggregator)
 
             check_early_stop(state)
@@ -148,6 +149,9 @@ class TrainStage(Stage):
             trainset won't receive the aggregation).
         """
 
+        # Cache for encoded models: key = frozenset of contributors, value = (model_msg, contributors)
+        _model_cache: dict[frozenset, tuple[Any, list[str]]] = {}
+
         # Anonymous functions
         def early_stopping_fn():
             return state.round is None
@@ -169,29 +173,32 @@ class TrainStage(Stage):
         def model_fn(node: str) -> tuple[Any, str, int, list[str]]:
             if state.round is None:
                 raise Exception("Round not initialized.")
+            except_nodes = TrainStage.__get_aggregated_models(node, state)
+            # Cache key: what the target already has determines the model we send
+            cache_key = frozenset(except_nodes)
+            if cache_key in _model_cache:
+                cached = _model_cache[cache_key]
+                if cached is None:
+                    return (None, PartialModelCommand.get_name(), state.round, [])
+                cached_msg, cached_contributors = cached
+                return (cached_msg, PartialModelCommand.get_name(), state.round, cached_contributors)
             try:
-                model = aggregator.get_model(TrainStage.__get_aggregated_models(node, state))
+                model = aggregator.get_model(except_nodes)
             except NoModelsToAggregateError:
                 logger.debug(state.addr, f"❔ No models to aggregate for {node}.")
-                return (
-                    None,
-                    PartialModelCommand.get_name(),
-                    state.round,
-                    [],
-                )
+                _model_cache[cache_key] = None
+                return (None, PartialModelCommand.get_name(), state.round, [])
+            contributors = model.get_contributors()
+            # Expensive: encode_parameters (pickle ~4MB) + build_weights (protobuf wrap)
             model_msg = communication_protocol.build_weights(
                 PartialModelCommand.get_name(),
                 state.round,
                 model.encode_parameters(),
-                model.get_contributors(),
+                contributors,
                 model.get_num_samples(),
             )
-            return (
-                model_msg,
-                PartialModelCommand.get_name(),
-                state.round,
-                model.get_contributors(),
-            )
+            _model_cache[cache_key] = (model_msg, contributors)
+            return (model_msg, PartialModelCommand.get_name(), state.round, contributors)
 
         # Gossip
         communication_protocol.gossip_weights(

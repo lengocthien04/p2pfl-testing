@@ -145,7 +145,7 @@ class ProtobuffServer(ABC, node_pb2_grpc.NodeServicesServicer, NodeComponent):
 
         # Log
         package_type = "message" if request.HasField("gossip_message") else "weights"
-        package_size = len(request.SerializeToString())
+        package_size = request.ByteSize()
         # Pass None for negative rounds, the logger will handle it
         round_num = request.round if request.round >= 0 else None
         logger.log_communication(
