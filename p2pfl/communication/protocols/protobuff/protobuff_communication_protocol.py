@@ -328,6 +328,7 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
         model_fn: Callable[[str], tuple[Any, str, int, list[str]]],
         period: float | None = None,
         create_connection: bool = False,
+        on_send_success: Callable[[str, list[str]], None] | None = None,
     ) -> None:
         """
         Gossip model weights.
@@ -339,6 +340,7 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
             model_fn: The model function.
             period: The period.
             create_connection: The create connection flag.
+            on_send_success: Callback after successful model send (target_addr, contributors).
 
         """
         if period is None:
@@ -350,6 +352,7 @@ class ProtobuffCommunicationProtocol(CommunicationProtocol):
             model_fn,
             period,
             create_connection,
+            on_send_success,
         )
 
     def save_logs(self) -> None:
