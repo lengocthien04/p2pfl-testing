@@ -97,7 +97,9 @@ class RoundFinishedStage(Stage):
                 if node == state.addr:
                     continue
                 nei_round = state.nei_status.get(node, -1)
-                if nei_round < current_round:
+                # CRITICAL: Check for EXACT round match, not >=
+                # This prevents stale nei_status from previous rounds causing premature barrier pass
+                if nei_round != current_round:
                     all_synced = False
                     break
 
@@ -109,8 +111,8 @@ class RoundFinishedStage(Stage):
             time.sleep(1.0)
 
         # Timeout
-        unsynced = [n for n in state.train_set if n != state.addr and state.nei_status.get(n, -1) < current_round]
-        logger.info(state.addr, f"⚠️ Round sync timeout. Unsynced: {len(unsynced)} nodes. Continuing...")
+        unsynced = [n for n in state.train_set if n != state.addr and state.nei_status.get(n, -1) != current_round]
+        logger.info(state.addr, f"⚠️ Round sync timeout. Unsynced: {len(unsynced)} nodes: {unsynced}. Continuing...")
 
     @staticmethod
     def __evaluate(state: NodeState, learner: Learner, communication_protocol: CommunicationProtocol) -> None:
