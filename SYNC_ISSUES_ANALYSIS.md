@@ -168,22 +168,35 @@ By the time Batch 4 advances to round 3, Batch 1 is already in round 4 or 5!
 - Reduces batch gaps, tighter synchronization
 - BUT: More GPU contention, potentially slower overall
 
-### Option B: Add Second Barrier After Voting ✅ IMPLEMENTED (v2)
+### Option B: Add Second Barrier After Voting ❌ FAILED (Both Attempts)
 - Barrier 1: Wait for all to finish round N (current)
-- Barrier 2: Wait for all to finish voting for round N+1 (new)
-- **v1 FAILED**: Used `nei_status` which updates AFTER training (circular dependency)
-- **v2 SOLUTION**: Use separate `nei_voting_status` which updates when `VoteTrainSetCommand` is received
-- Ensures all nodes start training round N+1 together
+- Barrier 2: Wait for all to finish voting for round N+1 (attempted)
+- **v1 FAILED**: Used `nei_status` which updates AFTER training (circular dependency → deadlock)
+- **v2 FAILED**: Used `nei_voting_status` which updates when vote received (still causes deadlock - reason unclear)
+- Both approaches result in all nodes stuck waiting forever
+
+### Option C: Accept Async Behavior OR Adjust ray_actor_pool_size
+- **Option C1**: Accept async behavior (late votes are harmless, correctly rejected)
+- **Option C2**: Reduce `ray_actor_pool_size` from 6 to 3 or 4 for tighter synchronization
+  - Fewer nodes training simultaneously = smaller batch gaps
+  - Trade-off: Increases total training time
+- **Option C3**: Increase `ray_actor_pool_size` to 24 (all nodes train together)
+  - Eliminates batching = perfect synchronization
+  - Trade-off: Maximum GPU/CPU contention
 
 ## Recommendation
 
-**Implemented Option B (v2)** - Second barrier after voting with separate voting status tracking:
+**Try Option C2 or C3** depending on hardware capacity:
 
-The user correctly identified that async behavior "gonna cause async man" - nodes training different rounds simultaneously breaks D-SGD's synchronous aggregation requirement.
+1. If hardware can handle it: Set `ray_actor_pool_size: 24` for perfect sync
+2. If hardware is limited: Reduce to `ray_actor_pool_size: 3` or `4` for tighter sync
+3. Current `ray_actor_pool_size: 6` creates 204-second spread (too large for D-SGD)
+
+The second barrier approach (Option B) has failed in both attempts and should not be pursued further without deeper investigation into the voting/aggregation flow.
 
 ---
 
-### Fix #5: Second Barrier After Voting
+### Fix #5: Second Barrier After Voting ❌ FAILED (Both Attempts)
 
 #### v1 Attempt: ❌ FAILED (Circular Dependency)
 
@@ -213,9 +226,7 @@ The user correctly identified that async behavior "gonna cause async man" - node
 
 ---
 
-#### v2 Solution: ✅ IMPLEMENTED (Separate Voting Status)
-
-**Key Insight**: We need a signal that indicates "I've finished voting" that's sent AFTER voting but BEFORE training. The `VoteTrainSetCommand` itself IS that signal!
+#### v2 Attempt: ❌ FAILED (Still Deadlocks)
 
 **Implementation**:
 
@@ -235,13 +246,7 @@ with self.state.nei_voting_status_lock:
         self.state.nei_voting_status[source] = round
 ```
 
-3. **Clear voting status on round advance** in `NodeState.increase_round()`:
-```python
-with self.nei_voting_status_lock:
-    self.nei_voting_status = {}
-```
-
-4. **Add barrier in VoteTrainSetStage** that waits for `nei_voting_status`:
+3. **Add barrier in VoteTrainSetStage** that waits for `nei_voting_status`:
 ```python
 @staticmethod
 def __wait_trainset_voting_complete(state: NodeState, communication_protocol: CommunicationProtocol) -> None:
@@ -263,27 +268,37 @@ def __wait_trainset_voting_complete(state: NodeState, communication_protocol: Co
         time.sleep(1.0)
 ```
 
-**How It Works**:
-1. Barrier 1 (RoundFinishedStage): Wait for all trainset nodes to finish round N
-2. All nodes advance to round N+1 and send votes
-3. When node receives `VoteTrainSetCommand`, it updates `nei_voting_status[sender] = round`
-4. All nodes aggregate votes and determine trainset
-5. **Barrier 2 (VoteTrainSetStage)**: Wait for all trainset nodes to have `nei_voting_status >= N+1`
-6. All nodes start training round N+1 together
+**Why It Failed**: 
+- Still causes deadlock - all nodes stuck waiting at "Waiting for all trainset nodes to finish voting for round 0"
+- Possible reasons:
+  - Vote messages may not be received/processed before barrier check
+  - Timing issue with vote aggregation vs barrier check
+  - `nei_voting_status` may not be populated correctly before barrier starts
+  - Round 0 might be a special case (initial round)
 
-**Why This Works**:
-- `nei_voting_status` is updated when vote is RECEIVED (not after training)
-- No circular dependency - voting happens before the barrier check
-- Thread-safe with locks
-- Cleared on round advance to prevent stale values
+**Timeline of Failure**:
+```
+09:16:50 - All nodes finish voting, send votes
+09:16:50 - All nodes compute votes and determine trainset
+09:16:50 - All nodes enter barrier, waiting for nei_voting_status >= 0
+09:16:50 - STUCK - nei_voting_status not populated or incorrect
+→ DEADLOCK
+```
 
-**Expected Result**:
-- All trainset nodes start training the same round together
-- Reduces 204-second spread to <10 seconds
-- Eliminates async behavior that breaks D-SGD
-- Late vote errors should disappear or be greatly reduced
+**Root Cause (Suspected)**: The barrier checks `nei_voting_status` immediately after vote aggregation, but the vote messages may still be in transit or not yet processed. There's a race condition between:
+1. Node sends vote → VoteTrainSetCommand updates nei_voting_status
+2. Node aggregates votes → enters barrier → checks nei_voting_status
 
-**Status**: ✅ Implemented and ready for testing
+If (2) happens before (1) completes for all nodes, deadlock occurs.
+
+**Lesson Learned**: 
+- Even with separate voting status tracking, timing issues persist
+- The vote aggregation and barrier check happen too close together
+- Would need to ensure ALL vote messages are processed BEFORE any node enters the barrier
+- This requires more complex synchronization (e.g., acknowledgment messages)
+- The complexity is not worth it - better to adjust `ray_actor_pool_size`
+
+**Status**: ❌ FAILED - Reverted due to deadlock
 
 ---
 
@@ -297,12 +312,12 @@ def __wait_trainset_voting_complete(state: NodeState, communication_protocol: Co
 
 ## Files Modified
 
-- `p2pfl/node_state.py` - Added `nei_status_lock`, clear `nei_status` on round advance; Added `nei_voting_status` and `nei_voting_status_lock` for tracking voting completion
+- `p2pfl/node_state.py` - Added `nei_status_lock`, clear `nei_status` on round advance
 - `p2pfl/communication/commands/message/models_ready_command.py` - Thread-safe updates, only accept newer values
 - `p2pfl/stages/base_node/round_finished_stage.py` - Thread-safe barrier checks
 - `p2pfl/communication/protocols/protobuff/gossiper.py` - Fix premature gossip exit
-- `p2pfl/communication/commands/message/vote_train_set_command.py` - Update `nei_voting_status` when vote received
-- `p2pfl/stages/base_node/vote_train_set_stage.py` - Added second barrier `__wait_trainset_voting_complete()` using `nei_voting_status` to ensure all nodes start training together
+- `p2pfl/communication/commands/message/vote_train_set_command.py` - ~~Attempted nei_voting_status tracking~~ (REVERTED - caused deadlock)
+- `p2pfl/stages/base_node/vote_train_set_stage.py` - ~~Attempted second barrier~~ (REVERTED - caused deadlock)
 
 ## Test Results
 

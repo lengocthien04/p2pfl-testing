@@ -63,12 +63,6 @@ class VoteTrainSetCommand(Command):
                 self.state.train_set_votes[source] = tmp_votes
                 self.state.train_set_votes_lock.release()
                 
-                # Track that this node has finished voting for this round
-                with self.state.nei_voting_status_lock:
-                    current_voting_status = self.state.nei_voting_status.get(source, -1)
-                    if round >= current_voting_status:
-                        self.state.nei_voting_status[source] = round
-                
                 # Communicate to the training process that a vote has been received
                 with contextlib.suppress(Exception):
                     self.state.wait_votes_ready_lock.release()
