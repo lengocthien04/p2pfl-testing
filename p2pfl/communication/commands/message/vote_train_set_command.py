@@ -63,10 +63,6 @@ class VoteTrainSetCommand(Command):
                 self.state.train_set_votes[source] = tmp_votes
                 self.state.train_set_votes_lock.release()
                 
-                # Update nei_status to track that this node has reached voting stage
-                # This helps the round barrier ensure all nodes finish voting before advancing
-                self.state.nei_status[source] = round
-                
                 # Communicate to the training process that a vote has been received
                 with contextlib.suppress(Exception):
                     self.state.wait_votes_ready_lock.release()
