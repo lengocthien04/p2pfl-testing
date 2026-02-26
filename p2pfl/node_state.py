@@ -56,6 +56,10 @@ class NodeState:
 
         # Other neis state (only round)
         self.nei_status: dict[str, int] = {}
+        
+        # Track which nodes have finished voting for current round
+        self.nei_voting_status: dict[str, int] = {}
+        self.nei_voting_status_lock = threading.Lock()
 
         # Train Set
         self.train_set: list[str] = []
@@ -151,6 +155,9 @@ class NodeState:
         # Clear nei_status with lock to prevent race conditions
         with self.nei_status_lock:
             self.nei_status = {}
+        # Clear voting status for new round
+        with self.nei_voting_status_lock:
+            self.nei_voting_status = {}
         logger.experiment_started(self.addr, self.experiment)  # TODO: Improve changes on the experiment
 
     def clear(self) -> None:

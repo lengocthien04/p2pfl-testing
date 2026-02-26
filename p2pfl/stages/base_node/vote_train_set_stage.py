@@ -185,6 +185,9 @@ class VoteTrainSetStage(Stage):
         
         This ensures all nodes start training the same round together, preventing
         async behavior where fast nodes are 1-2 rounds ahead of slow nodes.
+        
+        Uses nei_voting_status which is updated when VoteTrainSetCommand is received,
+        not nei_status which is updated after training completes.
         """
         if state.round is None or not state.train_set:
             return
@@ -198,16 +201,15 @@ class VoteTrainSetStage(Stage):
 
         while time.time() - start_time < wait_time:
             # Check if all trainset nodes have finished voting
-            # We know they've finished voting when they've sent their ModelsReadyCommand
-            # which updates nei_status to current_round
+            # We know they've finished voting when we've received their VoteTrainSetCommand
             all_voted = True
-            with state.nei_status_lock:
+            with state.nei_voting_status_lock:
                 for node in state.train_set:
                     if node == state.addr:
                         continue
-                    nei_round = state.nei_status.get(node, -1)
-                    # Node must be at current_round or higher (finished previous round)
-                    if nei_round < current_round:
+                    nei_voting_round = state.nei_voting_status.get(node, -1)
+                    # Node must have voted for current_round or higher
+                    if nei_voting_round < current_round:
                         all_voted = False
                         break
 
@@ -219,8 +221,8 @@ class VoteTrainSetStage(Stage):
             time.sleep(1.0)
 
         # Timeout
-        with state.nei_status_lock:
-            not_ready = [n for n in state.train_set if n != state.addr and state.nei_status.get(n, -1) < current_round]
+        with state.nei_voting_status_lock:
+            not_ready = [n for n in state.train_set if n != state.addr and state.nei_voting_status.get(n, -1) < current_round]
         logger.info(state.addr, f"⚠️ Voting sync timeout. Not ready: {len(not_ready)} nodes: {not_ready}. Starting training anyway...")
 
     @staticmethod

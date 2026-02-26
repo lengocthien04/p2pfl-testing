@@ -168,58 +168,92 @@ By the time Batch 4 advances to round 3, Batch 1 is already in round 4 or 5!
 - Reduces batch gaps, tighter synchronization
 - BUT: More GPU contention, potentially slower overall
 
-### Option B: Add Second Barrier After Voting 🔧 Complex → ✅ IMPLEMENTED
+### Option B: Add Second Barrier After Voting ✅ IMPLEMENTED (v2)
 - Barrier 1: Wait for all to finish round N (current)
 - Barrier 2: Wait for all to finish voting for round N+1 (new)
+- **v1 FAILED**: Used `nei_status` which updates AFTER training (circular dependency)
+- **v2 SOLUTION**: Use separate `nei_voting_status` which updates when `VoteTrainSetCommand` is received
 - Ensures all nodes start training round N+1 together
-- Requires new command/state tracking
-
-### Option C: Accept Async Behavior ⚠️ Not Acceptable for D-SGD
-- Late votes are harmless (correctly rejected)
-- Barrier ensures no round skipping
-- BUT: Async within-round behavior breaks D-SGD synchronous aggregation
-- Nodes training different rounds simultaneously causes incorrect model averaging
 
 ## Recommendation
 
-**Implemented Option B** - Second barrier after voting:
+**Implemented Option B (v2)** - Second barrier after voting with separate voting status tracking:
 
-The user correctly identified that async behavior "gonna cause async man" - nodes training different rounds simultaneously breaks D-SGD's synchronous aggregation requirement. The solution is to add a second barrier.
+The user correctly identified that async behavior "gonna cause async man" - nodes training different rounds simultaneously breaks D-SGD's synchronous aggregation requirement.
 
 ---
 
-### Fix #5: Second Barrier After Voting ✅ IMPLEMENTED
+### Fix #5: Second Barrier After Voting
+
+#### v1 Attempt: ❌ FAILED (Circular Dependency)
 
 **Problem**: With `ray_actor_pool_size: 6`, nodes finish rounds with 204-second spread. Fast nodes can be 1-2 rounds ahead of slow nodes, causing async behavior that breaks D-SGD.
 
-**Solution**: Add second barrier AFTER voting but BEFORE training starts.
+**Attempted Solution**: Add second barrier AFTER voting but BEFORE training starts, using `nei_status`.
+
+**Why It Failed**: 
+- **Circular Dependency**: Nodes wait for `nei_status[neighbor] >= current_round`
+- But `nei_status` is updated by `ModelsReadyCommand`, which is sent AFTER training completes
+- Training can't start because nodes are waiting for `nei_status` to update
+- `nei_status` can't update because training hasn't started
+- **Result**: Deadlock - all nodes stuck waiting forever
+
+**Timeline of Failure**:
+```
+09:02:28 - All nodes finish voting
+09:02:28 - All nodes enter barrier, waiting for nei_status >= 1
+09:02:28 - STUCK - nei_status is empty (cleared on round advance)
+09:02:28 - Training can't start (blocked by barrier)
+09:02:28 - ModelsReadyCommand can't be sent (training hasn't completed)
+09:02:28 - nei_status can't update (no ModelsReadyCommand received)
+→ DEADLOCK
+```
+
+**Root Cause**: `nei_status` tracks round COMPLETION (after training), not round START (after voting). Using it as a pre-training barrier creates circular dependency.
+
+---
+
+#### v2 Solution: ✅ IMPLEMENTED (Separate Voting Status)
+
+**Key Insight**: We need a signal that indicates "I've finished voting" that's sent AFTER voting but BEFORE training. The `VoteTrainSetCommand` itself IS that signal!
 
 **Implementation**:
-```python
-# In VoteTrainSetStage.execute():
-# After vote aggregation, wait for all trainset nodes to be ready
-if state.addr in state.train_set:
-    VoteTrainSetStage.__wait_trainset_voting_complete(state, communication_protocol)
 
-# New method:
+1. **Added new state variable** in `NodeState`:
+```python
+# Track which nodes have finished voting for current round
+self.nei_voting_status: dict[str, int] = {}
+self.nei_voting_status_lock = threading.Lock()
+```
+
+2. **Update voting status when vote received** in `VoteTrainSetCommand.execute()`:
+```python
+# Track that this node has finished voting for this round
+with self.state.nei_voting_status_lock:
+    current_voting_status = self.state.nei_voting_status.get(source, -1)
+    if round >= current_voting_status:
+        self.state.nei_voting_status[source] = round
+```
+
+3. **Clear voting status on round advance** in `NodeState.increase_round()`:
+```python
+with self.nei_voting_status_lock:
+    self.nei_voting_status = {}
+```
+
+4. **Add barrier in VoteTrainSetStage** that waits for `nei_voting_status`:
+```python
 @staticmethod
 def __wait_trainset_voting_complete(state: NodeState, communication_protocol: CommunicationProtocol) -> None:
-    """
-    Wait for all trainset nodes to finish voting before starting training.
-    
-    This ensures all nodes start training the same round together, preventing
-    async behavior where fast nodes are 1-2 rounds ahead of slow nodes.
-    """
-    # Wait for all trainset nodes to have nei_status >= current_round
-    # This means they've finished the previous round and are ready to train
+    """Wait for all trainset nodes to finish voting before starting training."""
     while time.time() - start_time < wait_time:
         all_voted = True
-        with state.nei_status_lock:
+        with state.nei_voting_status_lock:
             for node in state.train_set:
                 if node == state.addr:
                     continue
-                nei_round = state.nei_status.get(node, -1)
-                if nei_round < current_round:
+                nei_voting_round = state.nei_voting_status.get(node, -1)
+                if nei_voting_round < current_round:
                     all_voted = False
                     break
         
@@ -232,9 +266,16 @@ def __wait_trainset_voting_complete(state: NodeState, communication_protocol: Co
 **How It Works**:
 1. Barrier 1 (RoundFinishedStage): Wait for all trainset nodes to finish round N
 2. All nodes advance to round N+1 and send votes
-3. All nodes aggregate votes and determine trainset
-4. **Barrier 2 (VoteTrainSetStage)**: Wait for all trainset nodes to be ready (nei_status >= N+1)
-5. All nodes start training round N+1 together
+3. When node receives `VoteTrainSetCommand`, it updates `nei_voting_status[sender] = round`
+4. All nodes aggregate votes and determine trainset
+5. **Barrier 2 (VoteTrainSetStage)**: Wait for all trainset nodes to have `nei_voting_status >= N+1`
+6. All nodes start training round N+1 together
+
+**Why This Works**:
+- `nei_voting_status` is updated when vote is RECEIVED (not after training)
+- No circular dependency - voting happens before the barrier check
+- Thread-safe with locks
+- Cleared on round advance to prevent stale values
 
 **Expected Result**:
 - All trainset nodes start training the same round together
@@ -256,11 +297,12 @@ def __wait_trainset_voting_complete(state: NodeState, communication_protocol: Co
 
 ## Files Modified
 
-- `p2pfl/node_state.py` - Added `nei_status_lock`, clear `nei_status` on round advance
+- `p2pfl/node_state.py` - Added `nei_status_lock`, clear `nei_status` on round advance; Added `nei_voting_status` and `nei_voting_status_lock` for tracking voting completion
 - `p2pfl/communication/commands/message/models_ready_command.py` - Thread-safe updates, only accept newer values
 - `p2pfl/stages/base_node/round_finished_stage.py` - Thread-safe barrier checks
 - `p2pfl/communication/protocols/protobuff/gossiper.py` - Fix premature gossip exit
-- `p2pfl/stages/base_node/vote_train_set_stage.py` - Added second barrier `__wait_trainset_voting_complete()` to ensure all nodes start training together
+- `p2pfl/communication/commands/message/vote_train_set_command.py` - Update `nei_voting_status` when vote received
+- `p2pfl/stages/base_node/vote_train_set_stage.py` - Added second barrier `__wait_trainset_voting_complete()` using `nei_voting_status` to ensure all nodes start training together
 
 ## Test Results
 
