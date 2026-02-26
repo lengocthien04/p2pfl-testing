@@ -69,7 +69,7 @@ settings:
   training:
     vote_timeout: 60
     aggregation_timeout: 1800
-    ray_actor_pool_size: 24
+    ray_actor_pool_size: 6
     neighbor_only_aggregation: false  # Use TrainStage with temporary connections for YAML
 
 profiling:

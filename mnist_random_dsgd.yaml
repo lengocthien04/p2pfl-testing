@@ -67,7 +67,7 @@ settings:
   training:
     vote_timeout: 60
     aggregation_timeout: 1800
-    ray_actor_pool_size: 24
+    ray_actor_pool_size: 6
     neighbor_only_aggregation: true # Aggregate from neighbors only (D-SGD on sparse topology)
 
 profiling:
