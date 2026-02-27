@@ -44,7 +44,10 @@ class PreSendModelCommand(Command):
         """Remove hashes from sending_models."""
         with node_state.sending_models_lock:
             for hashed in [f"{str(hs)}-{round}" for hs in hashes]:
-                del node_state.sending_models[cmd][hashed]
+                # Async duplicate/late deliveries can try to remove an entry
+                # that has already been removed on another path.
+                if cmd in node_state.sending_models:
+                    node_state.sending_models[cmd].pop(hashed, None)
 
     def execute(self, source: str, round: int, *args, **kwargs) -> str | None:
         """Execute the command."""
@@ -65,7 +68,7 @@ class PreSendModelCommand(Command):
                 if (time.time() - timestamp) > Settings.gossip.MODE_EXPECTATION_TIMEOUT:
                     hashes_to_delete.append(saved_hash)
             for saved_hash in hashes_to_delete:
-                del self.node_state.sending_models[cmd][saved_hash]
+                self.node_state.sending_models[cmd].pop(saved_hash, None)
 
             # Check if hash is already in sending_models
             compatible_hashes = True

@@ -126,22 +126,29 @@ class VoteTrainSetStage(Stage):
             begin = time.time()
             timeout = count > Settings.training.VOTE_TIMEOUT
 
+            # In neighbor-only mode, a node can only reliably observe direct-neighbor
+            # voting progress in time for local coordination.
+            if Settings.training.NEIGHBOR_ONLY_AGGREGATION:
+                expected_voters = list(communication_protocol.get_neighbors(only_direct=True))
+            else:
+                expected_voters = list(communication_protocol.get_neighbors(only_direct=False))
+
             # Clear non candidate votes
             state.train_set_votes_lock.acquire()
             nc_votes = {
                 k: v
                 for k, v in state.train_set_votes.items()
-                if k in list(communication_protocol.get_neighbors(only_direct=False)) or k == state.addr
+                if k in expected_voters or k == state.addr
             }
             state.train_set_votes_lock.release()
 
             # Determine if all votes are received
-            needed_votes = set(list(communication_protocol.get_neighbors(only_direct=False)) + [state.addr])
+            needed_votes = set(expected_voters + [state.addr])
             votes_ready = needed_votes == set(nc_votes.keys())
 
             if votes_ready or timeout:
                 if timeout and not votes_ready:
-                    missing_votes = set(list(communication_protocol.get_neighbors(only_direct=False)) + [state.addr]) - set(nc_votes.keys())
+                    missing_votes = set(expected_voters + [state.addr]) - set(nc_votes.keys())
                     logger.info(
                         state.addr,
                         f"Timeout for vote aggregation. Missing votes from {missing_votes}",
@@ -185,48 +192,3 @@ class VoteTrainSetStage(Stage):
             if tsn not in list(communication_protocol.get_neighbors(only_direct=False)) and (tsn != state.addr):
                 train_set.remove(tsn)
         return train_set
-    @staticmethod
-    def __wait_trainset_voting_complete(state: NodeState, communication_protocol: CommunicationProtocol) -> None:
-        """
-        Wait for all trainset nodes to finish voting before starting training.
-
-        This ensures all nodes start training the same round together, preventing
-        async behavior where fast nodes are 1-2 rounds ahead of slow nodes.
-        """
-        if state.round is None or not state.train_set:
-            return
-
-        current_round = state.round
-        wait_time = Settings.heartbeat.WAIT_CONVERGENCE
-
-        logger.info(state.addr, f"⏸️  Waiting for all trainset nodes to finish voting for round {current_round} (max {wait_time}s)...")
-
-        start_time = time.time()
-
-        while time.time() - start_time < wait_time:
-            # Check if all trainset nodes have finished voting
-            # We know they've finished voting when they've sent their ModelsReadyCommand
-            # which updates nei_status to current_round
-            all_voted = True
-            with state.nei_status_lock:
-                for node in state.train_set:
-                    if node == state.addr:
-                        continue
-                    nei_round = state.nei_status.get(node, -1)
-                    # Node must be at current_round or higher (finished previous round)
-                    if nei_round < current_round:
-                        all_voted = False
-                        break
-
-            if all_voted:
-                elapsed = time.time() - start_time
-                logger.info(state.addr, f"✅ All trainset nodes ready to train round {current_round} ({elapsed:.1f}s)")
-                return
-
-            time.sleep(1.0)
-
-        # Timeout
-        with state.nei_status_lock:
-            not_ready = [n for n in state.train_set if n != state.addr and state.nei_status.get(n, -1) < current_round]
-        logger.info(state.addr, f"⚠️ Voting sync timeout. Not ready: {len(not_ready)} nodes: {not_ready}. Starting training anyway...")
-

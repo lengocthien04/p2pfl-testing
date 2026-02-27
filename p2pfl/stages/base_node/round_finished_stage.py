@@ -79,42 +79,49 @@ class RoundFinishedStage(Stage):
 
     @staticmethod
     def __wait_round_sync(state: NodeState, communication_protocol: CommunicationProtocol) -> None:
-        """Wait for all trainset nodes to reach the current round before advancing."""
+        """Wait for nodes this node can directly observe to reach the current round."""
         if state.round is None or not state.train_set:
             return
 
         current_round = state.round
         wait_time = Settings.heartbeat.WAIT_CONVERGENCE
+        if wait_time <= 0:
+            return
 
-        logger.info(state.addr, f"⏸️  Waiting for trainset to finish round {current_round} (max {wait_time}s)...")
+        if Settings.training.NEIGHBOR_ONLY_AGGREGATION:
+            direct_neighbors = set(communication_protocol.get_neighbors(only_direct=True).keys())
+            wait_nodes = [n for n in state.train_set if n != state.addr and n in direct_neighbors]
+            wait_scope = "direct neighbors in trainset"
+        else:
+            wait_nodes = [n for n in state.train_set if n != state.addr]
+            wait_scope = "trainset nodes"
+
+        if len(wait_nodes) == 0:
+            logger.info(state.addr, f"⏭️  No {wait_scope} to sync for round {current_round}.")
+            return
+
+        logger.info(
+            state.addr,
+            f"⏸️  Waiting for {len(wait_nodes)} {wait_scope} to finish round {current_round} (max {wait_time}s)...",
+        )
 
         start_time = time.time()
 
         while time.time() - start_time < wait_time:
-            # Check all trainset nodes (except self)
-            all_synced = True
             with state.nei_status_lock:
-                for node in state.train_set:
-                    if node == state.addr:
-                        continue
-                    nei_round = state.nei_status.get(node, -1)
-                    # Check if node has finished current round (nei_round >= current_round)
-                    # This allows nodes that are ahead to pass (shouldn't happen normally)
-                    if nei_round < current_round:
-                        all_synced = False
-                        break
+                unsynced = [n for n in wait_nodes if state.nei_status.get(n, -1) < current_round]
 
-            if all_synced:
+            if len(unsynced) == 0:
                 elapsed = time.time() - start_time
-                logger.info(state.addr, f"✅ All trainset synced at round {current_round} ({elapsed:.1f}s)")
+                logger.info(state.addr, f"✅ All {len(wait_nodes)} {wait_scope} synced at round {current_round} ({elapsed:.1f}s)")
                 return
 
             time.sleep(1.0)
 
         # Timeout
         with state.nei_status_lock:
-            unsynced = [n for n in state.train_set if n != state.addr and state.nei_status.get(n, -1) < current_round]
-        logger.info(state.addr, f"⚠️ Round sync timeout. Unsynced: {len(unsynced)} nodes: {unsynced}. Continuing...")
+            unsynced = [n for n in wait_nodes if state.nei_status.get(n, -1) < current_round]
+        logger.info(state.addr, f"⚠️ Round sync timeout. Unsynced {wait_scope}: {unsynced}. Continuing...")
 
     @staticmethod
     def __evaluate(state: NodeState, learner: Learner, communication_protocol: CommunicationProtocol) -> None:
