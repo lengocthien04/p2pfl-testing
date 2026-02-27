@@ -70,6 +70,7 @@ settings:
     models_period: 0.1
     models_per_round: 24
     exit_on_x_equal_rounds: 200
+    gossip_timeout: 300
 
   training:
     vote_timeout: 120

@@ -83,6 +83,8 @@ class Gossip:
     """Amount of equal rounds to exit gossiping. Careful, a low value can cause an early stop of gossiping."""
     MODE_EXPECTATION_TIMEOUT: float = 60.0
     """Timeout (seconds) to wait for a model to be received."""
+    GOSSIP_TIMEOUT: float = 300.0
+    """Hard timeout (seconds) for the gossip_weights loop. Prevents infinite spin when stale detection fails."""
 
 
 @dataclass

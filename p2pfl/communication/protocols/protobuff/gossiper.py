@@ -191,10 +191,23 @@ class Gossiper(threading.Thread, NodeComponent):
         # Initialize list with status of nodes in the last X iterations
         last_x_status: list[Any] = []
         j = 0
+        gossip_start = time.time()
 
         while True:
             # Get time to calculate frequency
             t = time.time()
+
+            # Hard timeout: prevent infinite spin when stale detection fails
+            # (e.g. status keeps changing due to heartbeat neighbor fluctuations).
+            elapsed = t - gossip_start
+            if elapsed > Settings.gossip.GOSSIP_TIMEOUT:
+                missing = len(get_candidates_fn())
+                logger.info(
+                    self.addr,
+                    f"⏰ Gossip hard timeout after {elapsed:.0f}s. "
+                    f"{missing} candidates appear remaining.",
+                )
+                return
 
             # If the trainning has been interrupted, stop waiting
             if early_stopping_fn():
