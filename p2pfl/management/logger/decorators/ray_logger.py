@@ -134,6 +134,10 @@ class RayP2PFLogger(P2PFLogger):
         """
         return ray.get(self.ray_actor.get_level_name.remote(lvl))
 
+    def set_node_alias(self, addr: str, alias: str) -> None:
+        """Register a human-readable alias for a node address on the remote actor."""
+        ray.get(self.ray_actor.set_node_alias.remote(addr, alias))
+
     def log(self, level: int, node: str, message: str) -> None:
         """
         Log a message.
