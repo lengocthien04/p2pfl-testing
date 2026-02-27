@@ -252,8 +252,10 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
         )
         node.start()
         
-        # Setup auto-save for comm logger
+        # Register human-readable alias for log output.
         node_name = f"node_{i}"
+        logger.set_node_alias(node.addr, node_name)
+
         comm_log_path = os.path.join(comm_log_dir, f"{node_name}.csv")
         if hasattr(node, '_communication_protocol') and node._communication_protocol:
             if hasattr(node._communication_protocol, 'comm_logger') and node._communication_protocol.comm_logger:

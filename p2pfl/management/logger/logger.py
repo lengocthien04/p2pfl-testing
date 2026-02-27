@@ -103,6 +103,7 @@ class P2PFLogger:
         """Initialize the logger."""
         # Node Information
         self._nodes: dict[str, dict[Any, Any]] = nodes if nodes else {}
+        self._node_aliases: dict[str, str] = {}
 
         # Experiment Metrics and Message Storage
         self.disable_locks = disable_locks
@@ -160,6 +161,14 @@ class P2PFLogger:
         By default, it does nothing.
         """
         pass
+
+    def set_node_alias(self, addr: str, alias: str) -> None:
+        """Register a human-readable alias for a node address (e.g. "node_0")."""
+        self._node_aliases[addr] = alias
+
+    def _resolve_node(self, node: str) -> str:
+        """Return the alias for a node address if one is registered."""
+        return self._node_aliases.get(node, node)
 
     ######
     # Application logging
@@ -266,17 +275,18 @@ class P2PFLogger:
             message: The message to log.
 
         """
+        display = self._resolve_node(node)
         # Traditional logging
         if level == logging.DEBUG:
-            self._logger.debug(message, extra={"node": node})
+            self._logger.debug(message, extra={"node": display})
         elif level == logging.INFO:
-            self._logger.info(message, extra={"node": node})
+            self._logger.info(message, extra={"node": display})
         elif level == logging.WARNING:
-            self._logger.warning(message, extra={"node": node})
+            self._logger.warning(message, extra={"node": display})
         elif level == logging.ERROR:
-            self._logger.error(message, extra={"node": node})
+            self._logger.error(message, extra={"node": display})
         elif level == logging.CRITICAL:
-            self._logger.critical(message, extra={"node": node})
+            self._logger.critical(message, extra={"node": display})
         else:
             raise ValueError(f"Invalid level: {level}")
 
