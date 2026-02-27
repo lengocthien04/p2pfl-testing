@@ -66,6 +66,10 @@ class LoggerDecorator(P2PFLogger):
         """Pass the finish call to the wrapped logger."""
         self._p2pfl_logger.finish()
 
+    def set_node_alias(self, addr: str, alias: str) -> None:
+        """Delegate alias registration to the wrapped logger."""
+        self._p2pfl_logger.set_node_alias(addr, alias)
+
     def set_level(self, level: int | str) -> None:
         """
         Set the logger level.
