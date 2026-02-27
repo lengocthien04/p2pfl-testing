@@ -221,12 +221,21 @@ class Gossiper(threading.Thread, NodeComponent):
                 for i in range(len(last_x_status) - 1):
                     if last_x_status[i] != last_x_status[i + 1]:
                         break
-                    logger.info(
-                        self.addr,
-                        f"⏹️  Gossiping exited for {Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS} equal rounds.",
-                    )
-                    logger.debug(self.addr, f"Gossip last status: {last_x_status[-1]}")
-                    return
+                else:
+                    # All status equal for 200 rounds - but only exit if we have all models
+                    missing = len(get_candidates_fn())
+                    if missing == 0:
+                        logger.info(
+                            self.addr,
+                            f"⏹️  Gossiping exited for {Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS} equal rounds.",
+                        )
+                        logger.debug(self.addr, f"Gossip last status: {last_x_status[-1]}")
+                        return
+                    else:
+                        logger.debug(
+                            self.addr,
+                            f"⚠️ Status unchanged for {Settings.gossip.EXIT_ON_X_EQUAL_ROUNDS} rounds but still missing {missing} candidates. Continuing...",
+                        )
 
             # Select a random subset of neighbors
             samples = min(Settings.gossip.MODELS_PER_ROUND, len(neis))

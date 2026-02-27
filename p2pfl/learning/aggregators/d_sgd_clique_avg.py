@@ -128,10 +128,10 @@ class DSGDCliqueAvg(Aggregator):
             logger.info(self.addr, f"⚠️ No clique models, using regular D-SGD")
             return self._uniform_average(all_neighbor_models)
 
-        # Stage 2: Average clique-averaged model with ALL neighbor models (D-SGD style)
-        # This includes the original clique models that are neighbors
-        all_models_for_stage2 = [clique_averaged] + all_neighbor_models
-        logger.info(self.addr, f"✅ Stage 2: Averaging 1 clique result + {len(all_neighbor_models)} neighbors = {len(all_models_for_stage2)} total")
+        # Stage 2: D-SGD — clique result replaces self, average with neighbor models (excluding self)
+        neighbor_models_no_self = [m for m in all_neighbor_models if not any(c == self.addr for c in m.get_contributors())]
+        all_models_for_stage2 = [clique_averaged] + neighbor_models_no_self
+        logger.info(self.addr, f"✅ Stage 2: D-SGD with 1 clique result + {len(neighbor_models_no_self)} neighbors = {len(all_models_for_stage2)} total")
         return self._uniform_average(all_models_for_stage2)
 
     def _uniform_average(self, models: list[P2PFLModel]) -> P2PFLModel:

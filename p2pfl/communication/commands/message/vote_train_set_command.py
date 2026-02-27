@@ -62,6 +62,7 @@ class VoteTrainSetCommand(Command):
                 self.state.train_set_votes_lock.acquire()
                 self.state.train_set_votes[source] = tmp_votes
                 self.state.train_set_votes_lock.release()
+                
                 # Communicate to the training process that a vote has been received
                 with contextlib.suppress(Exception):
                     self.state.wait_votes_ready_lock.release()

@@ -1,23 +1,23 @@
 description: "MNIST D-SGD with random max-degree topology and high non-IID data"
 
 network:
-  package: "p2pfl.communication.protocols.protobuff.memory"
-  protocol: "MemoryCommunicationProtocol"
-  nodes: 15
-  topology: "random_max_3" # Random topology with max degree 3
+  package: "p2pfl.communication.protocols.protobuff.grpc"
+  protocol: "GRPCCommunicationProtocol"
+  nodes: 24
+  topology: "random_max_4" # Random topology with max degree 3
 
 experiment:
   name: "mnist_random_dsgd"
   rounds: 100
   epochs: 1
-  trainset_size: 15
+  trainset_size: 24
   seed: 666
   wait_timeout: 300
 
   dataset:
     source: "huggingface"
     name: "p2pfl/MNIST"
-    batch_size: 128
+    batch_size: 64
     partitioning:
       package: "p2pfl.learning.dataset.partition_strategies"
       strategy: "DirichletPartitionStrategy"
@@ -28,10 +28,10 @@ experiment:
         self_balancing: true
 
   model:
-    package: "p2pfl.examples.mnist.model.mlp_pytorch"
+    package: "p2pfl.examples.mnist.model.mnist_linear_pytorch"
     model_build_fn: "model_build_fn"
     params:
-      lr_rate: 0.001
+      lr_rate: 0.1
 
   aggregator:
     package: "p2pfl.learning.aggregators.d_sgd"
@@ -51,8 +51,8 @@ settings:
 
   heartbeat:
     period: 10
-    timeout: 600
-    wait_convergence: 60
+    timeout: 999999
+    wait_convergence: 180
     exclude_beat_logs: true
 
   gossip:
@@ -65,9 +65,9 @@ settings:
     exit_on_x_equal_rounds: 100 # Increased threshold
 
   training:
-    vote_timeout: 60
+    vote_timeout: 120
     aggregation_timeout: 1800
-    ray_actor_pool_size: 10
+    ray_actor_pool_size: 24
     neighbor_only_aggregation: true # Aggregate from neighbors only (D-SGD on sparse topology)
 
 profiling:

@@ -44,10 +44,7 @@ class PreSendModelCommand(Command):
         """Remove hashes from sending_models."""
         with node_state.sending_models_lock:
             for hashed in [f"{str(hs)}-{round}" for hs in hashes]:
-                # Async duplicate/late deliveries can attempt to remove a hash
-                # that was already cleaned up by another path.
-                if cmd in node_state.sending_models:
-                    node_state.sending_models[cmd].pop(hashed, None)
+                del node_state.sending_models[cmd][hashed]
 
     def execute(self, source: str, round: int, *args, **kwargs) -> str | None:
         """Execute the command."""

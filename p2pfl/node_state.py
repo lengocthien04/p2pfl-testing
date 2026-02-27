@@ -76,6 +76,7 @@ class NodeState:
         self.model_initialized_lock.acquire()
         self.aggregated_model_event = threading.Event()
         self.aggregated_model_event.set()
+        self.nei_status_lock = threading.Lock()
 
     @property
     def round(self) -> int | None:
@@ -147,6 +148,9 @@ class NodeState:
 
         self.experiment.increase_round()
         self.models_aggregated = {}
+        # Clear nei_status with lock to prevent race conditions
+        with self.nei_status_lock:
+            self.nei_status = {}
         logger.experiment_started(self.addr, self.experiment)  # TODO: Improve changes on the experiment
 
     def clear(self) -> None:

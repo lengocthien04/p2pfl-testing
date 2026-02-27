@@ -77,7 +77,6 @@ class StartLearningStage(Stage):
                 epochs_per_round=epochs,
             )
             learner.set_epochs(epochs)
-        begin = time.time()
 
         # Wait and gossip model inicialization
         logger.info(state.addr, "⏳ Waiting initialization.")
@@ -88,10 +87,9 @@ class StartLearningStage(Stage):
         time.sleep(1.0)
         StartLearningStage.__gossip_model(state, communication_protocol, learner)
 
-        # Wait to guarantee new connection heartbeats convergence
-        wait_time = Settings.heartbeat.WAIT_CONVERGENCE - (time.time() - begin)
-        if wait_time > 0:
-            time.sleep(wait_time)
+        # Fixed 30s wait for all nodes to finish init before voting
+        logger.info(state.addr, "⏳ Waiting 30s for all nodes to sync...")
+        time.sleep(30)
 
         # Vote
         return StageFactory.get_stage("VoteTrainSetStage")

@@ -1,23 +1,23 @@
 description: "CIFAR-10 D-SGD with fully connected topology and high non-IID data"
 
 network:
-  package: "p2pfl.communication.protocols.protobuff.memory"
-  protocol: "MemoryCommunicationProtocol"
-  nodes: 15
+  package: "p2pfl.communication.protocols.protobuff.grpc"
+  protocol: "GRPCCommunicationProtocol"
+  nodes: 24
   topology: "fully_connected"
 
 experiment:
   name: "cifar10_fully_dsgd"
   rounds: 100
   epochs: 1
-  trainset_size: 15
+  trainset_size: 24
   seed: 666
   wait_timeout: 300
 
   dataset:
     source: "huggingface"
     name: "p2pfl/CIFAR10"
-    batch_size: 20
+    batch_size: 64
     transforms:
       package: "p2pfl.examples.cifar10.transforms"
       function: "get_cifar10_transforms"
@@ -31,10 +31,10 @@ experiment:
         alpha: 0.1
 
   model:
-    package: "p2pfl.examples.cifar10.model.resnet_pytorch"
+    package: "p2pfl.examples.cifar10.model.cifar_convnet_pytorch"
     model_build_fn: "model_build_fn"
     params:
-      lr_rate: 0.002
+      lr_rate: 0.1
 
   aggregator:
     package: "p2pfl.learning.aggregators.d_sgd"
@@ -54,23 +54,23 @@ settings:
 
   heartbeat:
     period: 10
-    timeout: 600
-    wait_convergence: 60
+    timeout: 999999
+    wait_convergence: 180
     exclude_beat_logs: true
 
   gossip:
     period: 1
     ttl: 30
-    messages_per_period: 200
+    messages_per_period: 9999999
     amount_last_messages_saved: 1000
-    models_period: 1
-    models_per_round: 4
+    models_period: 0.1
+    models_per_round: 24
     exit_on_x_equal_rounds: 100
 
   training:
-    vote_timeout: 60
+    vote_timeout: 120
     aggregation_timeout: 1800
-    ray_actor_pool_size: 10
+    ray_actor_pool_size: 24
     neighbor_only_aggregation: false
 
 profiling:

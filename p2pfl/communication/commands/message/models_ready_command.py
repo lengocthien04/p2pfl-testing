@@ -51,13 +51,12 @@ class ModelsReadyCommand(Command):
         ########################################################
         if self.state.round is not None:
             if round in [self.state.round - 1, self.state.round]:
-                # Keep monotonic round knowledge per neighbor to avoid
-                # stale messages overwriting newer progress.
-                previous_round = self.state.nei_status.get(source, -1)
-                if round > previous_round:
-                    self.state.nei_status[source] = round
+                # Use lock and only update if this is newer information
+                with self.state.nei_status_lock:
+                    current_status = self.state.nei_status.get(source, -1)
+                    if round >= current_status:
+                        self.state.nei_status[source] = round
             else:
-                # Ignored
                 logger.error(
                     self.state.addr,
                     f"Models ready from {source} in a late round. Ignored. {round} " + f"!= {self.state.round} / {self.state.round - 1}",
