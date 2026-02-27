@@ -51,7 +51,11 @@ class ModelsReadyCommand(Command):
         ########################################################
         if self.state.round is not None:
             if round in [self.state.round - 1, self.state.round]:
-                self.state.nei_status[source] = self.state.round
+                # Keep monotonic round knowledge per neighbor to avoid
+                # stale messages overwriting newer progress.
+                previous_round = self.state.nei_status.get(source, -1)
+                if round > previous_round:
+                    self.state.nei_status[source] = round
             else:
                 # Ignored
                 logger.error(
