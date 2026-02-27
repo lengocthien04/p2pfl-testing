@@ -1,8 +1,8 @@
 description: "CIFAR-10 D-SGD with D-Cliques topology (clique size 4) and clique averaging"
 
 network:
-  package: "p2pfl.communication.protocols.protobuff.memory"
-  protocol: "MemoryCommunicationProtocol"
+  package: "p2pfl.communication.protocols.protobuff.grpc"
+  protocol: "GRPCCommunicationProtocol"
   nodes: 24
   topology: "dclique_4"
   
@@ -58,8 +58,8 @@ settings:
 
   heartbeat:
     period: 10
-    timeout: 1800
-    wait_convergence: 999
+    timeout: 999999
+    wait_convergence: 180
     exclude_beat_logs: true
 
   gossip:
@@ -74,7 +74,7 @@ settings:
   training:
     vote_timeout: 120
     aggregation_timeout: 3600
-    ray_actor_pool_size: 6
+    ray_actor_pool_size: 24
     neighbor_only_aggregation: true
 
 profiling:

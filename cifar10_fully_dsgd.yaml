@@ -1,8 +1,8 @@
 description: "CIFAR-10 D-SGD with fully connected topology and high non-IID data"
 
 network:
-  package: "p2pfl.communication.protocols.protobuff.memory"
-  protocol: "MemoryCommunicationProtocol"
+  package: "p2pfl.communication.protocols.protobuff.grpc"
+  protocol: "GRPCCommunicationProtocol"
   nodes: 24
   topology: "fully_connected"
 
@@ -54,8 +54,8 @@ settings:
 
   heartbeat:
     period: 10
-    timeout: 600
-    wait_convergence: 999
+    timeout: 999999
+    wait_convergence: 180
     exclude_beat_logs: true
 
   gossip:
@@ -68,9 +68,9 @@ settings:
     exit_on_x_equal_rounds: 100
 
   training:
-    vote_timeout: 60
+    vote_timeout: 120
     aggregation_timeout: 1800
-    ray_actor_pool_size: 6
+    ray_actor_pool_size: 24
     neighbor_only_aggregation: false
 
 profiling:

@@ -1,8 +1,8 @@
 description: "MNIST D-SGD with fully connected topology and high non-IID data"
 
 network:
-  package: "p2pfl.communication.protocols.protobuff.memory"
-  protocol: "MemoryCommunicationProtocol"
+  package: "p2pfl.communication.protocols.protobuff.grpc"
+  protocol: "GRPCCommunicationProtocol"
   nodes: 24
   topology: "fully_connected"
 

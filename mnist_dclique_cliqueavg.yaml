@@ -1,8 +1,8 @@
 description: "MNIST D-SGD with D-Cliques topology (clique size 4) and clique averaging"
 
 network:
-  package: "p2pfl.communication.protocols.protobuff.memory"
-  protocol: "MemoryCommunicationProtocol"
+  package: "p2pfl.communication.protocols.protobuff.grpc"
+  protocol: "GRPCCommunicationProtocol"
   nodes: 24
   topology: "dclique_4"
 
