@@ -71,14 +71,14 @@ class DSGDCliqueAvg(Aggregator):
         
         Algorithm:
         1. Filter models by neighbor_filter (if set) - only keep neighbor models
-        2. Separate clique models from all filtered models
+        2. Separate clique models from non-clique models
         3. Average clique models uniformly (stage 1) → produces clique-averaged model
-        4. Average clique-averaged model with ALL filtered neighbor models (stage 2)
-        
+        4. Average clique-averaged model with only non-clique neighbors (stage 2)
+
         Example: Node in clique with 3 members, has 4 direct neighbors (3 clique + 1 outside)
         - Filter: Keep only models from 4 direct neighbors
         - Stage 1: Average 3 clique models → 1 clique-averaged model
-        - Stage 2: Average 1 clique result + 4 neighbor models = 5 total models
+        - Stage 2: Average 1 clique result + 1 non-clique neighbor = 2 total models
         
         Args:
             models: list of P2PFLModel to mix
@@ -128,38 +128,51 @@ class DSGDCliqueAvg(Aggregator):
             logger.info(self.addr, f"⚠️ No clique models, using regular D-SGD")
             return self._uniform_average(all_neighbor_models)
 
-        # Stage 2: D-SGD — clique result replaces self, average with neighbor models (excluding self)
-        neighbor_models_no_self = [m for m in all_neighbor_models if not any(c == self.addr for c in m.get_contributors())]
-        all_models_for_stage2 = [clique_averaged] + neighbor_models_no_self
-        logger.info(self.addr, f"✅ Stage 2: D-SGD with 1 clique result + {len(neighbor_models_no_self)} neighbors = {len(all_models_for_stage2)} total")
-        return self._uniform_average(all_models_for_stage2)
+        # Stage 2: Mix clique result with only non-clique neighbors (not clique members again).
+        # Weight the clique result proportionally to how many models it represents,
+        # so each underlying node gets equal effective weight.
+        non_clique_neighbors = [
+            m for m in all_neighbor_models
+            if not any(c in self._clique_members for c in m.get_contributors())
+        ]
 
-    def _uniform_average(self, models: list[P2PFLModel]) -> P2PFLModel:
-        """Uniform averaging of models (1/K weight for each)."""
-        k = len(models)
+        if len(non_clique_neighbors) == 0:
+            logger.info(self.addr, f"✅ Stage 2: No non-clique neighbors, using clique result directly")
+            return clique_averaged
+
+        total_nodes = len(clique_models) + len(non_clique_neighbors)
+        clique_weight = len(clique_models) / total_nodes
+        per_non_clique_weight = 1.0 / total_nodes
+        weights = [clique_weight] + [per_non_clique_weight] * len(non_clique_neighbors)
+        all_models_for_stage2 = [clique_averaged] + non_clique_neighbors
+        logger.info(self.addr, f"✅ Stage 2: clique_avg (w={clique_weight:.2f}) + {len(non_clique_neighbors)} non-clique (w={per_non_clique_weight:.2f} each)")
+        return self._weighted_average(all_models_for_stage2, weights)
+
+    def _weighted_average(self, models: list[P2PFLModel], weights: list[float]) -> P2PFLModel:
+        """Weighted averaging of models. Weights must sum to 1."""
         first_params = models[0].get_parameters()
-        # Use float64 arrays to avoid casting issues
         accum = [np.zeros_like(layer, dtype=np.float64) for layer in first_params]
-        
-        for model in models:
+
+        for model, w in zip(models, weights):
             params = model.get_parameters()
             for i, layer in enumerate(params):
-                # Convert to float64 for averaging
-                accum[i] += layer.astype(np.float64) / k
-        
-        # Convert back to original dtypes
-        result_params = []
-        for i, layer in enumerate(first_params):
-            result_params.append(accum[i].astype(layer.dtype))
-        
+                accum[i] += layer.astype(np.float64) * w
+
+        result_params = [accum[i].astype(layer.dtype) for i, layer in enumerate(first_params)]
+
         contributors = []
         for m in models:
             contributors += m.get_contributors()
-        
-        total_samples = sum([m.get_num_samples() for m in models])
-        
+
+        total_samples = sum(m.get_num_samples() for m in models)
+
         return models[0].build_copy(
             params=result_params,
             num_samples=total_samples,
-            contributors=contributors
+            contributors=contributors,
         )
+
+    def _uniform_average(self, models: list[P2PFLModel]) -> P2PFLModel:
+        """Uniform averaging of models (1/K weight for each)."""
+        weights = [1.0 / len(models)] * len(models)
+        return self._weighted_average(models, weights)

@@ -31,13 +31,13 @@ experiment:
       reduced_dataset: false
       reduction_factor: 1
       params:
-        alpha: 0.1
+        alpha: 0.5
 
   model:
     package: "p2pfl.examples.cifar10.model.cifar_convnet_pytorch"
     model_build_fn: "model_build_fn"
     params:
-      lr_rate: 0.1
+      lr_rate: 0.01
 
   aggregator:
     package: "p2pfl.learning.aggregators.d_sgd_clique_avg"

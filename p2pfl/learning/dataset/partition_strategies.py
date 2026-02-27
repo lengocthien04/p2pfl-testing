@@ -356,6 +356,53 @@ class DirichletPartitionStrategy(DataPartitionStrategy):
         return result
 
     @classmethod
+    def _apply_proportions_to_data(
+        cls,
+        data: Dataset,
+        label_tag: str,
+        num_partitions: int,
+        proportions: pd.DataFrame,
+        random_generator: np.random.Generator,
+    ) -> list[list[int]]:
+        """
+        Apply pre-computed Dirichlet proportions to a dataset.
+
+        Args:
+            data: The dataset to partition.
+            label_tag: The name of the column containing the labels.
+            num_partitions: The number of partitions to create.
+            proportions: Pre-computed Dirichlet proportions (partition x class).
+            random_generator: The random number generator.
+
+        """
+        result: list[list[int]] = [[] for _ in range(num_partitions)]
+        proportion_labels = set(proportions.columns.tolist())
+        data_labels = set(data[label_tag])
+
+        # Warn if the target dataset has labels absent from the proportions matrix,
+        # since those samples will not be assigned to any partition.
+        missing = data_labels - proportion_labels
+        if missing:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Labels {missing} exist in target dataset but not in proportions (derived from train). "
+                f"Samples with these labels will be distributed uniformly across partitions."
+            )
+            for label in missing:
+                label_index = [idx for idx, lab in enumerate(data[label_tag]) if lab == label]
+                # Distribute uniformly across partitions as a fallback.
+                uniform_proportions = pd.Series([1.0 / num_partitions] * num_partitions)
+                for partition, index_list in enumerate(cls._apply_proportions(label_index, uniform_proportions, random_generator)):
+                    result[partition].extend(index_list)
+
+        for label in proportion_labels:
+            label_index = [idx for idx, lab in enumerate(data[label_tag]) if lab == label]
+            for partition, index_list in enumerate(cls._apply_proportions(label_index, proportions[label], random_generator)):
+                result[partition].extend(index_list)
+
+        return result
+
+    @classmethod
     def generate_partitions(
         cls,
         train_data: Dataset,
@@ -372,6 +419,10 @@ class DirichletPartitionStrategy(DataPartitionStrategy):
 
         It divides the data into partitions so that the distribution of classes in each partition
         follows a Dirichlet distribution controlled by the alpha parameter.
+
+        The same Dirichlet proportions are used for both train and test so that each node's
+        test distribution matches its train distribution. Without this, per-node evaluation
+        metrics are misleading under strong non-IID settings.
 
         Args:
             train_data: The training Dataset object to partition.
@@ -396,23 +447,38 @@ class DirichletPartitionStrategy(DataPartitionStrategy):
         cls._check_num_partitions(num_partitions=num_partitions, len_smallest_dataset=min(len(train_data), len(test_data)))
 
         random_generator = np.random.default_rng(Settings.general.SEED)
-        return cls._partition_data(
-            data=train_data,
-            label_tag=label_tag,
+
+        # Generate Dirichlet proportions once from training data class distribution.
+        # Reuse for both train and test so each node's test set matches its train distribution.
+        train_class_proportions = {
+            label: train_data[label_tag].count(label) / len(train_data[label_tag])
+            for label in set(train_data[label_tag])
+        }
+        proportions = cls._generate_proportions(
             num_partitions=num_partitions,
-            min_partition_size=min_partition_size,
-            alpha=alpha,
-            random_generator=random_generator,
-            balancing=self_balancing,
-        ), cls._partition_data(
-            data=test_data,
-            label_tag=label_tag,
-            num_partitions=num_partitions,
-            min_partition_size=min_partition_size,
+            class_proportions=train_class_proportions,
+            min_partition_proportion=min_partition_size / len(train_data),
             alpha=alpha,
             random_generator=random_generator,
             balancing=self_balancing,
         )
+
+        train_partitions = cls._apply_proportions_to_data(
+            data=train_data,
+            label_tag=label_tag,
+            num_partitions=num_partitions,
+            proportions=proportions,
+            random_generator=random_generator,
+        )
+        test_partitions = cls._apply_proportions_to_data(
+            data=test_data,
+            label_tag=label_tag,
+            num_partitions=num_partitions,
+            proportions=proportions,
+            random_generator=random_generator,
+        )
+
+        return train_partitions, test_partitions
 
     @classmethod
     def _check_num_partitions(cls, num_partitions, len_smallest_dataset) -> None:
