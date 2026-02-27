@@ -112,17 +112,8 @@ class SuperActorPool(ActorPool):
             # Initialize ActorPool
             num_actors = Settings.training.RAY_ACTOR_POOL_SIZE if amount_actors is None else amount_actors
             
-            # Limit actors based on GPU availability
-            # Ray requires minimum 0.1 GPU per actor
-            cluster_resources = ray.cluster_resources()
-            num_gpus = cluster_resources.get("GPU", 0)
-            
-            if num_gpus > 0:
-                # Maximum actors we can create with 0.1 GPU each
-                max_actors_with_gpu = int(num_gpus / 0.1)
-                if num_actors > max_actors_with_gpu:
-                    logger.info("ActorPool", f"Requested {num_actors} actors but only {max_actors_with_gpu} can fit with 0.1 GPU each. Limiting to {max_actors_with_gpu}.")
-                    num_actors = max_actors_with_gpu
+            # GPU availability is handled by _calculate_gpu_per_actor which divides
+            # available GPUs evenly across all actors.
             
             # Calculate GPU resources per actor
             self.gpu_per_actor = self._calculate_gpu_per_actor(num_actors)
@@ -162,10 +153,10 @@ class SuperActorPool(ActorPool):
             logger.info("ActorPool", "No GPUs detected. Actors will run on CPU only.")
             return 0
 
-        # Always allocate 0.1 GPU per actor (maximum 10 actors per GPU)
-        gpu_per_actor = 0.1
+        # Divide available GPUs evenly so all requested actors can be created.
+        gpu_per_actor = round(num_gpus / num_actors, 4)
 
-        logger.info("ActorPool", f"Ray cluster has {num_gpus} GPU(s), allocating {gpu_per_actor:.2f} GPU per actor (max {int(num_gpus / gpu_per_actor)} actors)")
+        logger.info("ActorPool", f"Ray cluster has {num_gpus} GPU(s), allocating {gpu_per_actor:.4f} GPU per actor for {num_actors} actors")
 
         return gpu_per_actor
 
