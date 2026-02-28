@@ -61,13 +61,15 @@ class TrainStage(Stage):
             from p2pfl.settings import Settings
             neighbor_only = Settings.training.NEIGHBOR_ONLY_AGGREGATION
             if neighbor_only:
-                aggregator.set_nodes_to_aggregate(state.train_set)
                 direct_neighbors_dict = communication_protocol.get_neighbors(only_direct=True)
                 direct_neighbors = list(direct_neighbors_dict.keys())
                 neighbors_in_trainset = [n for n in direct_neighbors if n in state.train_set]
-                nodes_to_actually_aggregate = set([state.addr] + neighbors_in_trainset)
-                aggregator.neighbor_filter = nodes_to_actually_aggregate
-                logger.info(state.addr, f"🎯 Neighbor-only: aggregating from {len(nodes_to_actually_aggregate)} neighbors")
+                nodes_to_actually_aggregate = sorted({state.addr, *neighbors_in_trainset})
+                # Only expect models from direct neighbors — the aggregator event fires
+                # when these ~5 models arrive instead of waiting for all 24.
+                aggregator.set_nodes_to_aggregate(nodes_to_actually_aggregate)
+                aggregator.neighbor_filter = None
+                logger.info(state.addr, f"🎯 Neighbor-only: aggregating from {len(nodes_to_actually_aggregate)} nodes")
             else:
                 aggregator.set_nodes_to_aggregate(state.train_set)
                 aggregator.neighbor_filter = None
