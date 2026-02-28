@@ -120,6 +120,12 @@ class Node:
         self.__running = False
         self.state = NodeState(self.addr)
 
+        # Stop event — signaled before state teardown so workflow threads can exit cleanly.
+        self._stop_event = threading.Event()
+
+        # Learning thread handle for graceful join during stop.
+        self._learning_thread: threading.Thread | None = None
+
         # Workflow
         self.learning_workflow = LearningWorkflow()
 
@@ -247,6 +253,13 @@ class Node:
         """
         logger.info(self.addr, "Stopping node...")
         try:
+            # Signal stop intent so workflow threads can exit between stages.
+            self._stop_event.set()
+            # Unblock any pending aggregation wait so the learning thread can exit.
+            self.aggregator.clear()
+            # Wait for learning thread to finish (max 10s) before tearing down state.
+            if self._learning_thread is not None and self._learning_thread.is_alive():
+                self._learning_thread.join(timeout=10)
             # Stop server
             self._communication_protocol.stop()
             # Set not running
@@ -255,8 +268,8 @@ class Node:
             self.state.clear()
             # Unregister node
             logger.unregister_node(self.addr)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.error(self.addr, f"Error during node shutdown: {type(e).__name__}: {e}")
 
     ##########################
     #    Learning Setters    #
@@ -337,12 +350,14 @@ class Node:
     ###############################################
 
     def __start_learning_thread(self, rounds: int, epochs: int, trainset_size: int, experiment_name: str) -> None:
+        self._stop_event.clear()
         learning_thread = threading.Thread(
             target=self.__start_learning,
             args=(rounds, epochs, trainset_size, experiment_name),
             name="learning_thread-" + self.addr,
         )
         learning_thread.daemon = True
+        self._learning_thread = learning_thread
         learning_thread.start()
 
     def set_start_learning(self, rounds: int = 1, epochs: int = 1, trainset_size: int = 4, experiment_name="experiment") -> str:
@@ -399,7 +414,6 @@ class Node:
     ##################################
 
     def __start_learning(self, rounds: int, epochs: int, trainset_size: int, experiment_name: str) -> None:
-        # Set seed
         try:
             # Initialize experiment with metadata
             self.state.set_experiment(
@@ -425,11 +439,24 @@ class Node:
                 communication_protocol=self._communication_protocol,
                 aggregator=self.aggregator,
                 generator=random.Random(Settings.general.SEED),
+                stop_event=self._stop_event,
             )
 
         except Exception as e:
-            logger.error(self.addr, f"Error {type(e).__name__}: {e}\n{traceback.format_exc()}")
-            self.stop()
+            if self._stop_event.is_set():
+                logger.info(self.addr, "Learning stopped by stop signal.")
+                logger.debug(self.addr, f"Exception during stop: {type(e).__name__}: {e}")
+            else:
+                logger.error(self.addr, f"Error {type(e).__name__}: {e}\n{traceback.format_exc()}")
+                # Fully shut down the node so it is removed from the network.
+                # Cannot call self.stop() here (would deadlock on thread join).
+                self.learning_workflow.finished = True
+                self._stop_event.set()
+                self.aggregator.clear()
+                self.state.clear()
+                self._communication_protocol.stop()
+                self.__running = False
+                logger.unregister_node(self.addr)
 
     def __stop_learning(self) -> None:
         logger.info(self.addr, "Stopping learning")

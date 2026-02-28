@@ -401,9 +401,9 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
         print(f"✅ Start learning command sent")
 
         # Wait and check
-        # Get wait_timeout from experiment config (in minutes), default to 60 minutes (1 hour)
-        wait_timeout = experiment_config.get("wait_timeout", 60)
-        wait_to_finish(nodes, timeout=wait_timeout * 60, debug=debug)  # Convert minutes to seconds
+        wait_timeout = experiment_config.get("wait_timeout", 60)  # minutes
+        stall_timeout = experiment_config.get("stall_timeout", 900)  # seconds
+        wait_to_finish(nodes, timeout=wait_timeout * 60, stall_timeout=stall_timeout, debug=debug)
 
     except Exception as e:
         raise e
@@ -418,8 +418,10 @@ def run_from_yaml(yaml_path: str, debug: bool = False) -> None:
                         print(f"  ✓ Saved logs for node_{i}")
                     except Exception as save_err:
                         print(f"  ✗ Failed to save logs for node_{i}: {save_err}")
-        
-        # Stop Nodes
+
+        # Graceful shutdown: node.stop() signals the stop event, waits for the
+        # learning thread to exit (up to 10s), then tears down state/protocol.
+        print("🛑 Stopping all nodes...")
         for node in nodes:
             node.stop()
         # Profiling

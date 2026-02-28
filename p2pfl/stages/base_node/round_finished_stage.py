@@ -51,11 +51,13 @@ class RoundFinishedStage(Stage):
         if state is None or communication_protocol is None or aggregator is None or learner is None:
             raise Exception("Invalid parameters on RoundFinishedStage.")
 
+        stop_event = kwargs.get("stop_event")
+
         # Set Next Round
         aggregator.clear()
 
         # Wait for all nodes to finish this round before advancing
-        RoundFinishedStage.__wait_round_sync(state, communication_protocol)
+        RoundFinishedStage.__wait_round_sync(state, communication_protocol, stop_event)
 
         state.increase_round()
 
@@ -78,7 +80,7 @@ class RoundFinishedStage(Stage):
             return None
 
     @staticmethod
-    def __wait_round_sync(state: NodeState, communication_protocol: CommunicationProtocol) -> None:
+    def __wait_round_sync(state: NodeState, communication_protocol: CommunicationProtocol, stop_event=None) -> None:
         """Wait for nodes this node can directly observe to reach the current round."""
         if state.round is None or not state.train_set:
             return
@@ -108,6 +110,10 @@ class RoundFinishedStage(Stage):
         start_time = time.time()
 
         while time.time() - start_time < wait_time:
+            if stop_event is not None and stop_event.is_set():
+                logger.info(state.addr, "Round sync interrupted by stop signal.")
+                return
+
             with state.nei_status_lock:
                 unsynced = [n for n in wait_nodes if state.nei_status.get(n, -1) < current_round]
 

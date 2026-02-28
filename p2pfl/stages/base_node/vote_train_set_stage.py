@@ -51,24 +51,28 @@ class VoteTrainSetStage(Stage):
             raise Exception("Invalid parameters on VoteTrainSetStage.")
 
         try:
-            # Vote
-            VoteTrainSetStage.__vote(trainset_size, state, communication_protocol, generator)
-
-            # Aggregate votes
-            state.train_set = VoteTrainSetStage.__validate_train_set(
-                VoteTrainSetStage.__aggregate_votes(trainset_size, state, communication_protocol),
-                state,
-                communication_protocol,
-            )
-            logger.info(
-                state.addr,
-                f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}",
-            )
+            if not Settings.training.ENABLE_TRAINSET_VOTING:
+                # All known nodes participate when voting is disabled.
+                candidates = list(communication_protocol.get_neighbors(only_direct=False))
+                if state.addr not in candidates:
+                    candidates.append(state.addr)
+                candidates.sort()
+                state.train_set = candidates
+                logger.info(state.addr, f"🚂 Train set of {len(state.train_set)} nodes (voting disabled)")
+            else:
+                VoteTrainSetStage.__vote(trainset_size, state, communication_protocol, generator)
+                state.train_set = VoteTrainSetStage.__validate_train_set(
+                    VoteTrainSetStage.__aggregate_votes(trainset_size, state, communication_protocol),
+                    state,
+                    communication_protocol,
+                )
+                logger.info(
+                    state.addr,
+                    f"🚂 Train set of {len(state.train_set)} nodes: {state.train_set}",
+                )
 
             # Next stage
             if state.addr in state.train_set:
-                # Use neighbor-only aggregation for true D-SGD if configured
-                # Always use TrainStage (it handles neighbor-only aggregation internally)
                 return StageFactory.get_stage("TrainStage")
             else:
                 logger.debug(state.addr, "Node not in train set. Proceeding to WaitAggregatedModelsStage.")

@@ -201,33 +201,93 @@ def full_connection(node: Node, nodes: list[Node]) -> None:
         node.connect(n.addr)
 
 
-def wait_to_finish(nodes: list[Node], timeout=3600, debug=False) -> None:
+def wait_to_finish(nodes: list[Node], timeout=3600, stall_timeout=600, debug=False) -> None:
     """
     Wait until all nodes have finished the workflow.
 
+    Monitors per-round progress and detects stalls. If no node advances to a new
+    round within stall_timeout seconds, raises TimeoutError early instead of
+    waiting for the full wall-clock timeout.
+
     Args:
         nodes: List of nodes.
-        timeout: Timeout in seconds (default: 1 hour = 3600 seconds).
+        timeout: Wall-clock timeout in seconds (default: 1 hour).
+        stall_timeout: Max seconds without any round progress before declaring stall (default: 10 min).
         debug: Debug mode.
 
     Raises:
-        TimeoutError: If the nodes don't finish within the timeout period.
+        TimeoutError: If the nodes don't finish within the timeout period or progress stalls.
 
     """
-    # Wait until all nodes finish the workflow
     start = time.time()
+    last_round_sum = -1
+    last_finished_count = 0
+    last_stage_progress = 0
+    last_progress_time = start
+    log_interval = 60
+    last_log_time = start
+
     while True:
-        if debug:
-            logger.info(
-                "Waiting for nodes to finish",
-                str([n.learning_workflow.finished for n in nodes]),
-            )
         if all(n.learning_workflow.finished for n in nodes):
+            elapsed = time.time() - start
+            print(f"All nodes finished in {int(elapsed // 60)}m {int(elapsed % 60)}s.")
             break
+
         time.sleep(1)
-        elapsed = time.time() - start
+        now = time.time()
+        elapsed = now - start
+
+        # Track round progress across all nodes.
+        rounds = []
+        for n in nodes:
+            r = n.state.round
+            if r is not None:
+                rounds.append(r)
+        current_max = max(rounds) if rounds else -1
+        current_min = min(rounds) if rounds else -1
+        finished_count = sum(1 for n in nodes if n.learning_workflow.finished)
+
+        # Detect progress via three signals:
+        # 1. A node finishes (rebaseline sum since finished nodes drop out).
+        # 2. Active nodes advance rounds (sum increases).
+        # 3. Stage transitions within a round (covers long fit() phases).
+        current_sum = sum(rounds) if rounds else -1
+        stage_progress = sum(len(n.learning_workflow.history) for n in nodes)
+        if finished_count > last_finished_count:
+            last_finished_count = finished_count
+            last_round_sum = current_sum
+            last_stage_progress = stage_progress
+            last_progress_time = now
+        elif current_sum > last_round_sum:
+            last_round_sum = current_sum
+            last_stage_progress = stage_progress
+            last_progress_time = now
+        elif stage_progress > last_stage_progress:
+            last_stage_progress = stage_progress
+            last_progress_time = now
+
+        # Periodic progress log.
+        if now - last_log_time >= log_interval:
+            skew = current_max - current_min if rounds else 0
+            stall_elapsed = int(now - last_progress_time)
+            print(
+                f"[{int(elapsed // 60)}m] rounds: min={current_min} max={current_max} "
+                f"skew={skew} finished={finished_count}/{len(nodes)} "
+                f"stall={stall_elapsed}s/{stall_timeout}s"
+            )
+            last_log_time = now
+
         if elapsed > timeout:
-            raise TimeoutError(f"Timeout waiting for nodes to finish (elapsed: {int(elapsed // 60)} minutes {int(elapsed % 60)} seconds)")
+            raise TimeoutError(
+                f"Wall-clock timeout ({int(elapsed // 60)}m). "
+                f"Max round reached: {current_max}."
+            )
+
+        if now - last_progress_time > stall_timeout:
+            raise TimeoutError(
+                f"Progress stall: no round advance in {stall_timeout}s. "
+                f"Max round: {current_max}, elapsed: {int(elapsed // 60)}m."
+            )
 
 
 def check_equal_models(nodes: list[Node]) -> None:

@@ -17,6 +17,8 @@
 #
 """Workflows."""
 
+import threading
+
 from p2pfl.management.logger import logger
 from p2pfl.node_state import NodeState
 from p2pfl.stages.stage import Stage, check_early_stop
@@ -35,10 +37,14 @@ class StageWokflow:
     def run(self, **kwargs) -> None:
         """Run the workflow."""
         self.finished = False
-        # get state (need info from state)
         state: NodeState | None = kwargs.get("state")
+        stop_event: threading.Event | None = kwargs.get("stop_event")
         if state:
             while True:
+                if stop_event is not None and stop_event.is_set():
+                    logger.info(state.addr, "Workflow exiting: stop signal received.")
+                    self.finished = True
+                    break
                 logger.debug(state.addr, f"🏃 Running stage: {(self.current_stage.name())}")
                 self.history.append(self.current_stage.name())
                 next_stage = self.current_stage.execute(**kwargs)

@@ -119,6 +119,8 @@ class Training:
     RAY_ACTOR_POOL_SIZE: int = 4
     NEIGHBOR_ONLY_AGGREGATION: bool = False
     """If True, use TrainStageNeighborOnly for true D-SGD (aggregate only from direct neighbors)."""
+    ENABLE_TRAINSET_VOTING: bool = True
+    """If False, skip vote broadcast/aggregation and use all known nodes as train set."""
 
 
 ###################

@@ -52,24 +52,23 @@ class TrainStage(Stage):
         if state is None or communication_protocol is None or aggregator is None or learner is None:
             raise Exception("Invalid parameters on TrainStage.")
 
+        stop_event = kwargs.get("stop_event")
+
         try:
             check_early_stop(state)
 
             # Set Models To Aggregate
             from p2pfl.settings import Settings
-            if Settings.training.NEIGHBOR_ONLY_AGGREGATION:
-                # Accept models from all trainset (for gossip to work)
+            neighbor_only = Settings.training.NEIGHBOR_ONLY_AGGREGATION
+            if neighbor_only:
                 aggregator.set_nodes_to_aggregate(state.train_set)
-                # But only aggregate from neighbors
                 direct_neighbors_dict = communication_protocol.get_neighbors(only_direct=True)
                 direct_neighbors = list(direct_neighbors_dict.keys())
                 neighbors_in_trainset = [n for n in direct_neighbors if n in state.train_set]
                 nodes_to_actually_aggregate = set([state.addr] + neighbors_in_trainset)
-                # Set filter on aggregator
                 aggregator.neighbor_filter = nodes_to_actually_aggregate
-                logger.info(state.addr, f"🎯 Neighbor-only: accepting all, aggregating from {len(nodes_to_actually_aggregate)} neighbors")
+                logger.info(state.addr, f"🎯 Neighbor-only: aggregating from {len(nodes_to_actually_aggregate)} neighbors")
             else:
-                # Aggregate from all trainset (fully connected)
                 aggregator.set_nodes_to_aggregate(state.train_set)
                 aggregator.neighbor_filter = None
 
@@ -90,7 +89,7 @@ class TrainStage(Stage):
             # Aggregate Model
             models_added = aggregator.add_model(learner.get_model())
 
-            # send model added msg to ALL nodes (not just direct neighbors)
+            # Broadcast model-added msg to ALL nodes.
             agg_msg = communication_protocol.build_msg(
                 ModelsAggregatedCommand.get_name(),
                 models_added,
@@ -100,7 +99,10 @@ class TrainStage(Stage):
             for addr, (client, _) in all_neis.items():
                 if addr != state.addr:
                     client.send(agg_msg, temporal_connection=True)
-            TrainStage.__gossip_model_aggregation(state, communication_protocol, aggregator)
+
+            TrainStage.__gossip_model_aggregation(
+                state, communication_protocol, aggregator, stop_event, neighbor_only=neighbor_only,
+            )
 
             check_early_stop(state)
 
@@ -138,6 +140,8 @@ class TrainStage(Stage):
         state: NodeState,
         communication_protocol: CommunicationProtocol,
         aggregator: Aggregator,
+        stop_event=None,
+        neighbor_only: bool = False,
     ) -> None:
         """
         Gossip model aggregation.
@@ -152,29 +156,33 @@ class TrainStage(Stage):
         # Cache for encoded models: key = frozenset of contributors, value = (model_msg, contributors)
         _model_cache: dict[frozenset, tuple[Any, list[str]]] = {}
 
-        # Anonymous functions
         def early_stopping_fn():
+            if stop_event is not None and stop_event.is_set():
+                return True
             return state.round is None
 
         def get_candidates_fn() -> list[str]:
-            candidates = set(state.train_set) - {state.addr}
+            # In neighbor-only mode, only gossip with direct neighbors in the trainset.
+            if neighbor_only:
+                direct = set(communication_protocol.get_neighbors(only_direct=True).keys())
+                candidates = (set(state.train_set) & direct) - {state.addr}
+            else:
+                candidates = set(state.train_set) - {state.addr}
             return [n for n in candidates if len(TrainStage.__get_remaining_nodes(n, state)) != 0]
 
         def status_fn() -> Any:
-            # Include aggregator's actual model count so status changes when WE receive models
-            # (even if models_aggregated from broadcasts doesn't change).
-            # This prevents premature gossip exit via exit_on_x_equal_rounds.
             own_model_count = len(aggregator.get_aggregated_models())
+            if neighbor_only:
+                direct = set(communication_protocol.get_neighbors(only_direct=True).keys())
+                relevant = [n for n in direct if n in state.train_set]
+            else:
+                relevant = [
+                    n for n in communication_protocol.get_neighbors(only_direct=False)
+                    if n in state.train_set
+                ]
             return (
                 own_model_count,
-                [
-                    (
-                        n,
-                        TrainStage.__get_aggregated_models(n, state),
-                    )
-                    for n in communication_protocol.get_neighbors(only_direct=False)
-                    if (n in state.train_set)
-                ],
+                [(n, TrainStage.__get_aggregated_models(n, state)) for n in relevant],
             )
 
         def model_fn(node: str) -> tuple[Any, str, int, list[str]]:

@@ -13,6 +13,7 @@ experiment:
   trainset_size: 24
   seed: 666
   wait_timeout: 300
+  stall_timeout: 900
 
   dataset:
     source: "huggingface"
@@ -59,7 +60,7 @@ settings:
   heartbeat:
     period: 10
     timeout: 999999
-    wait_convergence: 180
+    wait_convergence: 30
     exclude_beat_logs: true
 
   gossip:
@@ -70,13 +71,14 @@ settings:
     models_period: 0.1
     models_per_round: 24
     exit_on_x_equal_rounds: 200
-    gossip_timeout: 300
+    gossip_timeout: 60
 
   training:
     vote_timeout: 120
     aggregation_timeout: 3600
     ray_actor_pool_size: 24
     neighbor_only_aggregation: true
+    enable_trainset_voting: false
 
 profiling:
   enabled: false
