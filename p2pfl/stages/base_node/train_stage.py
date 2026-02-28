@@ -102,8 +102,13 @@ class TrainStage(Stage):
                 if addr != state.addr:
                     client.send(agg_msg, temporal_connection=True)
 
+            # In neighbor-only mode, gossip targets the local aggregation set (~5 nodes)
+            # so candidates are considered satisfied when they have those models,
+            # not when they have all 24 trainset models.
+            gossip_target = nodes_to_actually_aggregate if neighbor_only else state.train_set
             TrainStage.__gossip_model_aggregation(
-                state, communication_protocol, aggregator, stop_event, neighbor_only=neighbor_only,
+                state, communication_protocol, aggregator, stop_event,
+                neighbor_only=neighbor_only, gossip_target=gossip_target,
             )
 
             check_early_stop(state)
@@ -144,6 +149,7 @@ class TrainStage(Stage):
         aggregator: Aggregator,
         stop_event=None,
         neighbor_only: bool = False,
+        gossip_target: list[str] | None = None,
     ) -> None:
         """
         Gossip model aggregation.
@@ -163,6 +169,8 @@ class TrainStage(Stage):
                 return True
             return state.round is None
 
+        target_set = gossip_target if gossip_target is not None else state.train_set
+
         def get_candidates_fn() -> list[str]:
             # In neighbor-only mode, only gossip with direct neighbors in the trainset.
             if neighbor_only:
@@ -170,7 +178,7 @@ class TrainStage(Stage):
                 candidates = (set(state.train_set) & direct) - {state.addr}
             else:
                 candidates = set(state.train_set) - {state.addr}
-            return [n for n in candidates if len(TrainStage.__get_remaining_nodes(n, state)) != 0]
+            return [n for n in candidates if len(TrainStage.__get_remaining_nodes(n, state, target_set)) != 0]
 
         def status_fn() -> Any:
             own_model_count = len(aggregator.get_aggregated_models())
@@ -234,5 +242,6 @@ class TrainStage(Stage):
             return []
 
     @staticmethod
-    def __get_remaining_nodes(node: str, state: NodeState) -> set[str]:
-        return set(state.train_set) - set(TrainStage.__get_aggregated_models(node, state))
+    def __get_remaining_nodes(node: str, state: NodeState, target: list[str] | None = None) -> set[str]:
+        expected = set(target) if target is not None else set(state.train_set)
+        return expected - set(TrainStage.__get_aggregated_models(node, state))
