@@ -8,7 +8,7 @@ network:
 
 experiment:
   name: "cifar10_dclique_cliqueavg_20node"
-  rounds: 100
+  rounds: 3
   epochs: 1
   trainset_size: 20
   seed: 666

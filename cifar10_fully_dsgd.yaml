@@ -8,7 +8,7 @@ network:
 
 experiment:
   name: "cifar10_fully_dsgd"
-  rounds: 100
+  rounds: 3
   epochs: 1
   trainset_size: 24
   seed: 666
