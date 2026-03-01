@@ -68,7 +68,10 @@ class RoundFinishedStage(Stage):
             raise ValueError("Round or total rounds not set.")
 
         if state.round < state.total_rounds:
-            return StageFactory.get_stage("VoteTrainSetStage")
+            # Skip voting - all nodes train every round
+            state.train_set = list(communication_protocol.get_neighbors(only_direct=False).keys()) + [state.addr]
+            logger.info(state.addr, f"🚂 All {len(state.train_set)} nodes in trainset (voting disabled)")
+            return StageFactory.get_stage("TrainStage")
         else:
             # At end, all nodes compute metrics
             RoundFinishedStage.__evaluate(state, learner, communication_protocol)

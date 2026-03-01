@@ -34,11 +34,10 @@ experiment:
       lr_rate: 0.1
 
   aggregator:
-    package: "p2pfl.learning.aggregators.d_sgd_clique_avg"
-    aggregator: "DSGDCliqueAvg"
+    package: "p2pfl.learning.aggregators.d_sgd"
+    aggregator: "DSGD"
     params:
       disable_partial_aggregation: true
-      clique_weight_ratio: 2.0
 
 settings:
   general:
