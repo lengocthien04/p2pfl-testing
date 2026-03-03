@@ -56,22 +56,7 @@ class TrainStage(Stage):
             check_early_stop(state)
 
             # Set Models To Aggregate
-            from p2pfl.settings import Settings
-            if Settings.training.NEIGHBOR_ONLY_AGGREGATION:
-                # Accept models from all trainset (for gossip to work)
-                aggregator.set_nodes_to_aggregate(state.train_set)
-                # But only aggregate from neighbors
-                direct_neighbors_dict = communication_protocol.get_neighbors(only_direct=True)
-                direct_neighbors = list(direct_neighbors_dict.keys())
-                neighbors_in_trainset = [n for n in direct_neighbors if n in state.train_set]
-                nodes_to_actually_aggregate = set([state.addr] + neighbors_in_trainset)
-                # Set filter on aggregator
-                aggregator.neighbor_filter = nodes_to_actually_aggregate
-                logger.info(state.addr, f"🎯 Neighbor-only: accepting all, aggregating from {len(nodes_to_actually_aggregate)} neighbors")
-            else:
-                # Aggregate from all trainset (fully connected)
-                aggregator.set_nodes_to_aggregate(state.train_set)
-                aggregator.neighbor_filter = None
+            aggregator.set_nodes_to_aggregate(state.train_set)
 
             check_early_stop(state)
 
@@ -90,16 +75,14 @@ class TrainStage(Stage):
             # Aggregate Model
             models_added = aggregator.add_model(learner.get_model())
 
-            # send model added msg to ALL nodes (not just direct neighbors)
-            agg_msg = communication_protocol.build_msg(
-                ModelsAggregatedCommand.get_name(),
-                models_added,
-                round=state.round,
+            # send model added msg
+            communication_protocol.broadcast(
+                communication_protocol.build_msg(
+                    ModelsAggregatedCommand.get_name(),
+                    models_added,
+                    round=state.round,
+                )
             )
-            all_neis = communication_protocol.get_neighbors(only_direct=False)
-            for addr, (client, _) in all_neis.items():
-                if addr != state.addr:
-                    client.send(agg_msg, temporal_connection=True)
             TrainStage.__gossip_model_aggregation(state, communication_protocol, aggregator)
 
             check_early_stop(state)
@@ -149,9 +132,6 @@ class TrainStage(Stage):
             trainset won't receive the aggregation).
         """
 
-        # Cache for encoded models: key = frozenset of contributors, value = (model_msg, contributors)
-        _model_cache: dict[frozenset, tuple[Any, list[str]]] = {}
-
         # Anonymous functions
         def early_stopping_fn():
             return state.round is None
@@ -161,51 +141,41 @@ class TrainStage(Stage):
             return [n for n in candidates if len(TrainStage.__get_remaining_nodes(n, state)) != 0]
 
         def status_fn() -> Any:
-            # Include aggregator's actual model count so status changes when WE receive models
-            # (even if models_aggregated from broadcasts doesn't change).
-            # This prevents premature gossip exit via exit_on_x_equal_rounds.
-            own_model_count = len(aggregator.get_aggregated_models())
-            return (
-                own_model_count,
-                [
-                    (
-                        n,
-                        TrainStage.__get_aggregated_models(n, state),
-                    )
-                    for n in communication_protocol.get_neighbors(only_direct=False)
-                    if (n in state.train_set)
-                ],
-            )
+            return [
+                (
+                    n,
+                    TrainStage.__get_aggregated_models(n, state),
+                )
+                for n in communication_protocol.get_neighbors(only_direct=False)
+                if (n in state.train_set)
+            ]
 
         def model_fn(node: str) -> tuple[Any, str, int, list[str]]:
             if state.round is None:
                 raise Exception("Round not initialized.")
-            except_nodes = TrainStage.__get_aggregated_models(node, state)
-            # Cache key: what the target already has determines the model we send
-            cache_key = frozenset(except_nodes)
-            if cache_key in _model_cache:
-                cached = _model_cache[cache_key]
-                if cached is None:
-                    return (None, PartialModelCommand.get_name(), state.round, [])
-                cached_msg, cached_contributors = cached
-                return (cached_msg, PartialModelCommand.get_name(), state.round, cached_contributors)
             try:
-                model = aggregator.get_model(except_nodes)
+                model = aggregator.get_model(TrainStage.__get_aggregated_models(node, state))
             except NoModelsToAggregateError:
                 logger.debug(state.addr, f"❔ No models to aggregate for {node}.")
-                _model_cache[cache_key] = None
-                return (None, PartialModelCommand.get_name(), state.round, [])
-            contributors = model.get_contributors()
-            # Expensive: encode_parameters (pickle ~4MB) + build_weights (protobuf wrap)
+                return (
+                    None,
+                    PartialModelCommand.get_name(),
+                    state.round,
+                    [],
+                )
             model_msg = communication_protocol.build_weights(
                 PartialModelCommand.get_name(),
                 state.round,
                 model.encode_parameters(),
-                contributors,
+                model.get_contributors(),
                 model.get_num_samples(),
             )
-            _model_cache[cache_key] = (model_msg, contributors)
-            return (model_msg, PartialModelCommand.get_name(), state.round, contributors)
+            return (
+                model_msg,
+                PartialModelCommand.get_name(),
+                state.round,
+                model.get_contributors(),
+            )
 
         # Gossip
         communication_protocol.gossip_weights(
