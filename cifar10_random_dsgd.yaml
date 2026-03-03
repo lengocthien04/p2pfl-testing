@@ -2,7 +2,7 @@ description: "CIFAR-10 D-SGD with random topology (avg degree 4) and high non-II
 
 network:
   package: "p2pfl.communication.protocols.protobuff.grpc"
-  protocol: "GRPCCommunicationProtocol"
+  protocol: "GrpcCommunicationProtocol"
   nodes: 24
   topology: "random_max_4"
 

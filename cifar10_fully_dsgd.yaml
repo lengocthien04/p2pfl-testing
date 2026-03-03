@@ -2,7 +2,7 @@ description: "CIFAR-10 D-SGD with fully connected topology and high non-IID data
 
 network:
   package: "p2pfl.communication.protocols.protobuff.grpc"
-  protocol: "GRPCCommunicationProtocol"
+  protocol: "GrpcCommunicationProtocol"
   nodes: 24
   topology: "fully_connected"
 
