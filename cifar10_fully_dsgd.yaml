@@ -4,7 +4,7 @@ network:
   package: "p2pfl.communication.protocols.protobuff.grpc"
   protocol: "GrpcCommunicationProtocol"
   nodes: 24
-  topology: "fully_connected"
+  topology: "full"
 
 experiment:
   name: "cifar10_fully_dsgd"
